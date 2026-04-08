@@ -3584,50 +3584,26 @@ hr,
 }
 
 
-/* Fix dropdown di dapp browser */
-.duration-select-wrap,
-.form-group select,
-select.form-input,
-select.duration-select {
-  position: relative;
-  z-index: 9999 !important;
-}
-
-.duration-select,
+/* FIX DROPDOWN UNTUK DAPP BROWSER */
+select,
 #durationSelect,
 #lpLockSelect {
-  position: relative;
-  z-index: 9999 !important;
+  -webkit-appearance: menulist !important;
+  appearance: menulist !important;
   pointer-events: auto !important;
   cursor: pointer !important;
+  position: relative !important;
+  z-index: 999999 !important;
   background: #eef4fc !important;
+  border: 2px solid #00f5ff !important;
+  padding: 12px !important;
+  font-size: 16px !important;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
-/* Fix untuk container yang mungkin overflow */
-.step-content {
-  overflow: visible !important;
-}
-
-.step-panel {
-  overflow: visible !important;
-}
-
-.launch-grid {
-  overflow: visible !important;
-}
-
-/* Pastikan dropdown bisa keluar dari container */
+.step-content,
+.step-panel,
 .form-group {
   overflow: visible !important;
-  position: relative;
-  z-index: 1;
-}
-
-/* Khusus untuk dapp browser */
-@media (max-width: 768px) {
-  select.duration-select,
-  #durationSelect,
-  #lpLockSelect {
-    font-size: 16px !important; /* Mencegah zoom otomatis di iOS */
-  }
 }
