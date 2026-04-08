@@ -3582,3 +3582,52 @@ hr,
 .load-more-btn:hover svg {
   transform: translateY(2px);
 }
+
+
+/* Fix dropdown di dapp browser */
+.duration-select-wrap,
+.form-group select,
+select.form-input,
+select.duration-select {
+  position: relative;
+  z-index: 9999 !important;
+}
+
+.duration-select,
+#durationSelect,
+#lpLockSelect {
+  position: relative;
+  z-index: 9999 !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  background: #eef4fc !important;
+}
+
+/* Fix untuk container yang mungkin overflow */
+.step-content {
+  overflow: visible !important;
+}
+
+.step-panel {
+  overflow: visible !important;
+}
+
+.launch-grid {
+  overflow: visible !important;
+}
+
+/* Pastikan dropdown bisa keluar dari container */
+.form-group {
+  overflow: visible !important;
+  position: relative;
+  z-index: 1;
+}
+
+/* Khusus untuk dapp browser */
+@media (max-width: 768px) {
+  select.duration-select,
+  #durationSelect,
+  #lpLockSelect {
+    font-size: 16px !important; /* Mencegah zoom otomatis di iOS */
+  }
+}
