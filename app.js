@@ -2185,7 +2185,7 @@ async function launchPresale() {
   if (logoBase64) logoHash = await uploadLogoToServer(logoBase64, logoMimeType);
 
   const btn = document.getElementById("btnLaunch");
-  const originalText = btn?.textContent || "🚀 Launch Presale Sekarang";
+  const originalText = btn?.textContent || "🚀 Launch Presale";
   if (btn) {
     btn.disabled = true;
     btn.textContent = "Memproses...";
