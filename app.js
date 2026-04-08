@@ -2930,3 +2930,99 @@ function loadMorePresales() {
     showToast(`Memuat ${morePresales.length} presale lagi`, "info");
   }, 100);
 }
+
+
+// ========== FIX DROPDOWN UNTUK DAPP BROWSER ==========
+function createCustomDropdown(selectId, onChangeFunc) {
+    const originalSelect = document.getElementById(selectId);
+    if (!originalSelect) return;
+    
+    originalSelect.style.display = 'none';
+
+    const wrapper = document.createElement('div');
+    wrapper.style.position = 'relative';
+    wrapper.style.width = '100%';
+    wrapper.style.marginBottom = '10px';
+    
+    const trigger = document.createElement('div');
+    trigger.textContent = originalSelect.options[originalSelect.selectedIndex]?.text || 'Pilih';
+    trigger.style.cssText = `
+        background: #eef4fc;
+        border: 2px solid #00f5ff;
+        border-radius: 8px;
+        padding: 12px;
+        font-size: 16px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-family: monospace;
+    `;
+    trigger.innerHTML += '<span style="font-size:18px;">▼</span>';
+    
+    const dropdown = document.createElement('div');
+    dropdown.style.cssText = `
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #00f5ff;
+        border-radius: 8px;
+        z-index: 1000000;
+        display: none;
+        max-height: 200px;
+        overflow-y: auto;
+        margin-top: 4px;
+    `;
+
+    for (let i = 0; i < originalSelect.options.length; i++) {
+        const opt = originalSelect.options[i];
+        const optDiv = document.createElement('div');
+        optDiv.textContent = opt.text;
+        optDiv.style.cssText = `
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #ddd;
+            color: #0d1828;
+        `;
+        optDiv.onclick = () => {
+            originalSelect.value = opt.value;
+            trigger.innerHTML = opt.text + '<span style="font-size:18px;">▼</span>';
+            dropdown.style.display = 'none';
+            if (onChangeFunc) onChangeFunc(opt.value);
+            // Trigger event change manual
+            const event = new Event('change');
+            originalSelect.dispatchEvent(event);
+        };
+        dropdown.appendChild(optDiv);
+    }
+    
+    trigger.onclick = () => {
+        dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+    };
+    
+    // Tutup dropdown saat klik di luar
+    document.addEventListener('click', function(e) {
+        if (!wrapper.contains(e.target)) {
+            dropdown.style.display = 'none';
+        }
+    });
+    
+    wrapper.appendChild(trigger);
+    wrapper.appendChild(dropdown);
+    originalSelect.parentNode.insertBefore(wrapper, originalSelect);
+}
+
+setTimeout(() => {
+    createCustomDropdown('durationSelect', (val) => {
+        if (typeof selectDurationFromSelect === 'function') {
+            selectDurationFromSelect(val);
+        }
+    });
+    createCustomDropdown('lpLockSelect', (val) => {
+        if (typeof selectLpLockFromSelect === 'function') {
+            selectLpLockFromSelect(val);
+        }
+    });
+}, 500);
