@@ -3583,27 +3583,3 @@ hr,
   transform: translateY(2px);
 }
 
-
-/* FIX DROPDOWN UNTUK DAPP BROWSER */
-select,
-#durationSelect,
-#lpLockSelect {
-  -webkit-appearance: menulist !important;
-  appearance: menulist !important;
-  pointer-events: auto !important;
-  cursor: pointer !important;
-  position: relative !important;
-  z-index: 999999 !important;
-  background: #eef4fc !important;
-  border: 2px solid #00f5ff !important;
-  padding: 12px !important;
-  font-size: 16px !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-}
-
-.step-content,
-.step-panel,
-.form-group {
-  overflow: visible !important;
-}
