@@ -14,7 +14,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=Cabinet+Grotesk:wght@400;500;700;800&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=6"> <!-- UPDATE VERSION -->
+    <link rel="stylesheet" href="style.css?v=8"> <!-- UPDATE VERSION -->
     <script src="https://cdn.jsdelivr.net/npm/ethers@6.9.0/dist/ethers.umd.min.js"></script>
 </head>
 
@@ -266,23 +266,40 @@
                                 <input type="hidden" id="selectedDuration" value="-1">
                             </div>
 
-                            <!-- LP LOCK DROPDOWN -->
+                            <!-- LP LOCK RADIO BUTTON (SAMA MODEL DENGAN DURASI) -->
                             <div class="form-group">
                                 <label>🔐 Durasi LP Lock *</label>
                                 <p class="field-hint" style="margin-bottom:0.5rem">Minimal 30 hari (wajib). Semakin lama
-                                    lock, semakin
-                                    tinggi kepercayaan investor.</p>
-                                <div class="duration-select-wrap">
-                                    <select id="lpLockSelect" class="duration-select"
-                                        onchange="selectLpLockFromSelect(this.value)">
-                                        <option value="0">🔒 30 Hari — Minimum wajib (tanpa badge Trusted)</option>
-                                        <option value="1">🔒 6 Bulan — ⭐ Badge Trusted</option>
-                                        <option value="2">🔒 1 Tahun — ⭐ Badge Trusted</option>
-                                        <option value="3">🔥 Permanen — ⭐ Trusted Tertinggi (tidak bisa ditarik)
-                                        </option>
-                                    </select>
-                                    <span class="duration-select-icon">▾</span>
+                                    lock, semakin tinggi kepercayaan investor.</p>
+
+                                <div class="duration-radio-group"
+                                    style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
+                                    <label
+                                        style="display:flex; align-items:center; gap:12px; padding:12px; background:#eef4fc; border-radius:8px; cursor:pointer; border:1px solid #ccc;">
+                                        <input type="radio" name="lpLock" value="0"
+                                            onchange="selectLpLockFromSelect(this.value)">
+                                        <span>🔒 30 Hari — Minimum wajib (tanpa badge Trusted)</span>
+                                    </label>
+                                    <label
+                                        style="display:flex; align-items:center; gap:12px; padding:12px; background:#eef4fc; border-radius:8px; cursor:pointer; border:1px solid #ccc;">
+                                        <input type="radio" name="lpLock" value="1"
+                                            onchange="selectLpLockFromSelect(this.value)">
+                                        <span>🔒 6 Bulan — ⭐ Badge Trusted</span>
+                                    </label>
+                                    <label
+                                        style="display:flex; align-items:center; gap:12px; padding:12px; background:#eef4fc; border-radius:8px; cursor:pointer; border:1px solid #ccc;">
+                                        <input type="radio" name="lpLock" value="2"
+                                            onchange="selectLpLockFromSelect(this.value)">
+                                        <span>🔒 1 Tahun — ⭐ Badge Trusted</span>
+                                    </label>
+                                    <label
+                                        style="display:flex; align-items:center; gap:12px; padding:12px; background:#eef4fc; border-radius:8px; cursor:pointer; border:1px solid #ff8c00;">
+                                        <input type="radio" name="lpLock" value="3"
+                                            onchange="selectLpLockFromSelect(this.value)">
+                                        <span>🔥 Permanen — ⭐ Trusted Tertinggi (tidak bisa ditarik)</span>
+                                    </label>
                                 </div>
+
                                 <input type="hidden" id="selectedLpLock" value="0">
                                 <div id="lpLockBadgePreview" style="margin-top:0.5rem">
                                     <span class="badge badge-lock-30d">🔒 30D</span>
@@ -495,7 +512,7 @@
         </div>
     </footer>
 
-    <script src="app.js?v=6"></script>
+    <script src="app.js?v=8"></script>
 </body>
 
 </html>
