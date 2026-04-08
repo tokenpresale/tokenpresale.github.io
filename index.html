@@ -14,7 +14,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=Cabinet+Grotesk:wght@400;500;700;800&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=3"> <!-- UPDATE VERSION -->
+    <link rel="stylesheet" href="style.css?v=5"> <!-- UPDATE VERSION -->
     <script src="https://cdn.jsdelivr.net/npm/ethers@6.9.0/dist/ethers.umd.min.js"></script>
 </head>
 
@@ -238,16 +238,29 @@
                             </div>
                             <div class="form-group">
                                 <label>Durasi Presale *</label>
-                                <div class="duration-select-wrap">
-                                    <select id="durationSelect" class="duration-select"
-                                        onchange="selectDurationFromSelect(this.value)">
-                                        <option value="-1" disabled selected>-- Pilih durasi --</option>
-                                        <option value="0">☀️ 1 Hari — Fee: 0.0005 BNB</option>
-                                        <option value="1">📅 1 Minggu — Fee: 0.001 BNB</option>
-                                        <option value="2">🗓️ 1 Bulan — Fee: 0.005 BNB</option>
-                                    </select>
-                                    <span class="duration-select-icon">▾</span>
+
+                                <div class="duration-radio-group"
+                                    style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
+                                    <label
+                                        style="display:flex; align-items:center; gap:12px; padding:12px; background:#eef4fc; border-radius:8px; cursor:pointer; border:1px solid #ccc;">
+                                        <input type="radio" name="duration" value="0"
+                                            onchange="selectDurationFromSelect(this.value)">
+                                        <span>☀️ 1 Hari — Fee: 0.0005 BNB</span>
+                                    </label>
+                                    <label
+                                        style="display:flex; align-items:center; gap:12px; padding:12px; background:#eef4fc; border-radius:8px; cursor:pointer; border:1px solid #ccc;">
+                                        <input type="radio" name="duration" value="1"
+                                            onchange="selectDurationFromSelect(this.value)">
+                                        <span>📅 1 Minggu — Fee: 0.001 BNB</span>
+                                    </label>
+                                    <label
+                                        style="display:flex; align-items:center; gap:12px; padding:12px; background:#eef4fc; border-radius:8px; cursor:pointer; border:1px solid #ccc;">
+                                        <input type="radio" name="duration" value="2"
+                                            onchange="selectDurationFromSelect(this.value)">
+                                        <span>🗓️ 1 Bulan — Fee: 0.005 BNB</span>
+                                    </label>
                                 </div>
+                                <input type="hidden" id="selectedDuration" value="-1">
                                 <div id="durationFeeDisplay" style="display:none" class="duration-fee-badge">💸 <span
                                         id="durationFeeText">—</span></div>
                                 <input type="hidden" id="selectedDuration" value="-1">
@@ -482,7 +495,7 @@
         </div>
     </footer>
 
-    <script src="app.js?v=3"></script>
+    <script src="app.js?v=5"></script>
 </body>
 
 </html>
