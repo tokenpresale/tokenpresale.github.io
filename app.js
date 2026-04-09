@@ -2116,7 +2116,7 @@ function updateReferralVal() {
 
     updateAllocBreakdown();
     recalcAlloc();
-  }, 300);
+  }, 3000);
 }
 
 let liquidityTimeout = null;
@@ -2162,7 +2162,7 @@ function updateLiquidityVal() {
 
     updateAllocBreakdown();
     recalcAlloc();
-  }, 300);
+  }, 3000);
 }
 
 function buildConfirmCard() {
