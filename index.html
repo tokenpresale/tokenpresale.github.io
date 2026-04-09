@@ -5,16 +5,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <meta name="description" content="RecehLaunch - Platform Presale Token Terdesentralisasi di BNB Smart Chain">
-    <meta name="keywords" content="presale, launchpad, bnb smart chain, token launch, web3">
+    <meta name="keywords" content="presale, launchpad, BNB Smart Chain, token launch, web3">
     <meta name="theme-color" content="#f5f7fc">
-    <link rel="shortcut icon" type="image/png" href="https://tokenpresale.github.io/favicon.png" />
+    <link rel="shortcut icon" type="image/png" href="https://cryptoreceh.com/favicon.png" />
     <title>Receh Launchpad — Token Presale Platform on BNB Smart Chain</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
         href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=Cabinet+Grotesk:wght@400;500;700;800&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=11"> <!-- UPDATE VERSION -->
+    <link rel="stylesheet" href="style.css?v=15"> <!-- UPDATE VERSION -->
     <script src="https://cdn.jsdelivr.net/npm/ethers@6.9.0/dist/ethers.umd.min.js"></script>
 </head>
 
@@ -47,6 +47,8 @@
                 <a href="#" class="nav-link" onclick="navigateTo('portfolio');return false;">Portfolio</a>
                 <a href="#" class="nav-link" onclick="navigateTo('admin');return false;" id="adminNavLink"
                     style="display:none">Admin</a>
+                <a href="#" class="nav-link" onclick="navigateTo('lp-locks');return false;">🔒 LP Lock</a>
+                <a href="#" class="nav-link" onclick="navigateTo('my-lp-locks');return false;">🔐 My LP Lock</a>
             </nav>
             <div class="header-right">
                 <div class="chain-badge">🔗 BNB Smart Chain</div>
@@ -263,7 +265,6 @@
                                 <input type="hidden" id="selectedDuration" value="-1">
                                 <div id="durationFeeDisplay" style="display:none" class="duration-fee-badge">💸 <span
                                         id="durationFeeText">—</span></div>
-                                <input type="hidden" id="selectedDuration" value="-1">
                             </div>
 
                             <!-- LP LOCK RADIO BUTTON (SAMA MODEL DENGAN DURASI) -->
@@ -469,6 +470,28 @@
             </div>
         </div>
 
+        <!-- PAGE: LP LOCK LIST -->
+        <div class="page" id="page-lp-locks">
+            <div class="container">
+                <div class="page-header">
+                    <h2 class="section-title">🔒 Daftar LP Lock</h2>
+                    <p class="page-desc">Semua likuiditas yang terkunci dari presale di RecehLaunch</p>
+                </div>
+                <div id="lpLockListContent"></div>
+            </div>
+        </div>
+
+        <!-- PAGE: MY LP LOCKS -->
+        <div class="page" id="page-my-lp-locks">
+            <div class="container">
+                <div class="page-header">
+                    <h2 class="section-title">🔐 LP Lock Milikku</h2>
+                    <p class="page-desc">Kelola LP lock dari presale yang kamu buat</p>
+                </div>
+                <div id="myLPLockContent"></div>
+            </div>
+        </div>
+
     </main>
 
     <!-- MODAL -->
@@ -486,7 +509,7 @@
                         <div class="logo-icon">R</div>
                         <div class="logo-text">RECEH<span>LAUNCH</span></div>
                     </div>
-                    <p>Launchpad terdesentralisasi termurah di BNB Smart Chain</p>
+                    <p>Launchpad terdesentralisasi pertama di BNB Smart Chain</p>
                 </div>
                 <div class="footer-links">
                     <div class="footer-col">
@@ -500,19 +523,38 @@
                             onclick="window.open('https://cryptoreceh.com/blog/', '_blank');return false;">Dokumentasi</a><a
                             href="#"
                             onclick="window.open('https://app.cryptoreceh.com', '_blank');return false;">CreateToken</a><a
-                            href="#"
-                            onclick="window.open('https://cryptoreceh.com/token-sale/', '_blank');return false;">Token
-                            Sale</a>
+                            href="#" onclick="window.open('https://dex.cryptoreceh.com', '_blank');return false;">Receh
+                            DEX</a>
                     </div>
                 </div>
             </div>
             <div class="footer-bottom">
                 <p>© 2026 CryptoRECEH.com All rights reserved.</p>
             </div>
+            <div id="contractAddressFooter" style="font-size:0.65rem; color:var(--text3); margin-top:0.5rem;"></div>
         </div>
     </footer>
 
-    <script src="app.js?v=11"></script>
+    <script src="app.js?v=15"></script>
+
+    <!-- TRANSACTION MODAL -->
+    <div class="modal-overlay" id="txModalOverlay" onclick="closeTxModal()"></div>
+    <div class="modal" id="txModal">
+        <button class="modal-close" onclick="closeTxModal()">✕</button>
+        <div class="modal-content" id="txModalContent">
+            <div class="tx-modal-icon" id="txModalIcon">⏳</div>
+            <div class="tx-modal-title" id="txModalTitle">Memproses Transaksi</div>
+            <div class="tx-modal-message" id="txModalMessage">Harap konfirmasi transaksi di wallet Anda...</div>
+            <div class="tx-modal-detail" id="txModalDetail"></div>
+            <div class="tx-modal-progress" id="txModalProgress">
+                <div class="tx-progress-bar">
+                    <div class="tx-progress-fill" id="txProgressFill"></div>
+                </div>
+            </div>
+            <button class="btn-primary tx-modal-btn" id="txModalBtn" style="display:none"
+                onclick="closeTxModal()">Tutup</button>
+        </div>
+    </div>
 </body>
 
 </html>
