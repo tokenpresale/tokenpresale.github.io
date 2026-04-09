@@ -409,10 +409,10 @@ let allFilteredPresales = [];
 const buttonTexts = new Map();
 let accountsChangedHandler = null;
 let chainChangedHandler = null;
+let txModalInterval = null;
 
 function createRpcProvider() {
   let rpcProvider;
-
   try {
     rpcProvider = new ethers.JsonRpcProvider(CONFIG.RPC_URL, {
       chainId: CONFIG.CHAIN_ID,
@@ -421,7 +421,6 @@ function createRpcProvider() {
   } catch (e) {
     rpcProvider = new ethers.JsonRpcProvider(CONFIG.RPC_URL);
   }
-
   const ensMethods = [
     "resolveName",
     "lookupAddress",
@@ -435,7 +434,6 @@ function createRpcProvider() {
     "getEnsText",
     "getEnsAvatar",
   ];
-
   ensMethods.forEach((method) => {
     try {
       if (typeof rpcProvider[method] === "function") {
@@ -446,7 +444,6 @@ function createRpcProvider() {
       }
     } catch (e) {}
   });
-
   try {
     Object.defineProperty(rpcProvider, "network", {
       value: { chainId: CONFIG.CHAIN_ID, name: CONFIG.CHAIN_NAME },
@@ -456,7 +453,6 @@ function createRpcProvider() {
   } catch (e) {
     console.warn("Could not set network property:", e);
   }
-
   return rpcProvider;
 }
 
@@ -471,7 +467,6 @@ function getReadOnlyContract() {
     console.warn("Invalid contract address");
     return null;
   }
-
   if (!readOnlyContract) {
     try {
       readOnlyContract = new ethers.Contract(
@@ -524,7 +519,6 @@ async function getTotalReferralEarnings() {
 
 async function uploadLogoToServer(base64, mimeType) {
   if (!CONFIG.UPLOAD_ENDPOINT) return "";
-
   try {
     const byteCharacters = atob(base64);
     const byteNumbers = new Array(byteCharacters.length);
@@ -533,24 +527,15 @@ async function uploadLogoToServer(base64, mimeType) {
     }
     const byteArray = new Uint8Array(byteNumbers);
     const blob = new Blob([byteArray], { type: mimeType });
-
     const formData = new FormData();
     formData.append("logo", blob, `logo_${Date.now()}.png`);
-
     const response = await fetch(CONFIG.UPLOAD_ENDPOINT, {
       method: "POST",
       body: formData,
     });
-
-    if (!response.ok) {
-      throw new Error(`Upload failed: ${response.status}`);
-    }
-
+    if (!response.ok) throw new Error(`Upload failed: ${response.status}`);
     const data = await response.json();
-
-    if (data.success && data.filename) {
-      return data.filename;
-    }
+    if (data.success && data.filename) return data.filename;
     return "";
   } catch (e) {
     console.error("Logo upload error:", e);
@@ -563,35 +548,28 @@ window.addEventListener("DOMContentLoaded", async () => {
     const loadingScreen = document.getElementById("loadingScreen");
     if (loadingScreen) loadingScreen.classList.add("hidden");
   }, 2000);
-
   const contractFooter = document.getElementById("contractAddressFooter");
   if (contractFooter) {
     contractFooter.textContent = `Contract: ${CONFIG.PRESALE_FACTORY_ADDRESS}`;
   }
-
   if (window.ethereum) {
     const accounts = await window.ethereum.request({ method: "eth_accounts" });
     if (accounts.length > 0) {
       await initWallet(accounts[0]);
     }
   }
-
   await loadPresales();
-
   window.addEventListener("scroll", () => {
     const header = document.getElementById("mainHeader");
     if (header) header.classList.toggle("scrolled", window.scrollY > 10);
   });
-
   const urlParams = new URLSearchParams(window.location.search);
   const refParam = urlParams.get("ref");
   const presaleParam = urlParams.get("presale");
-
   if (refParam && ethers.isAddress(refParam)) {
     localStorage.setItem("rl_referrer", refParam);
     showToast("🎁 Link referral terdeteksi!", "success");
   }
-
   if (presaleParam !== null) {
     const pid = parseInt(presaleParam);
     if (!isNaN(pid) && pid >= 0) {
@@ -604,20 +582,16 @@ window.addEventListener("DOMContentLoaded", async () => {
 
 async function connectWallet() {
   if (isWalletConnecting) return;
-
   if (!window.ethereum) {
     showToast("MetaMask atau wallet Web3 tidak ditemukan!", "error");
     return;
   }
-
   const btn = document.getElementById("connectWalletBtn");
   if (!btn) return;
-
   const originalText =
     btn.querySelector("#connectBtnText")?.textContent || "Connect Wallet";
   setLoading("connectWalletBtn", true, "Loading...");
   isWalletConnecting = true;
-
   try {
     const accounts = await window.ethereum.request({
       method: "eth_requestAccounts",
@@ -641,25 +615,20 @@ async function connectWallet() {
 
 async function initWallet(address) {
   userAddress = address;
-
   if (!window.ethereum) {
     showToast("Wallet tidak ditemukan!", "error");
     return;
   }
-
   provider = new ethers.BrowserProvider(window.ethereum);
   signer = await provider.getSigner();
-
   factoryContract = new ethers.Contract(
     CONFIG.PRESALE_FACTORY_ADDRESS,
     FACTORY_ABI,
     signer,
   );
-
   const short = `${address.slice(0, 6)}...${address.slice(-4)}`;
   const connectBtnText = document.getElementById("connectBtnText");
   if (connectBtnText) connectBtnText.textContent = short;
-
   const adminLink = document.getElementById("adminNavLink");
   if (
     adminLink &&
@@ -668,14 +637,12 @@ async function initWallet(address) {
     adminLink.style.display = "";
     loadAdminData();
   }
-
   if (accountsChangedHandler && window.ethereum.removeListener) {
     window.ethereum.removeListener("accountsChanged", accountsChangedHandler);
   }
   if (chainChangedHandler && window.ethereum.removeListener) {
     window.ethereum.removeListener("chainChanged", chainChangedHandler);
   }
-
   accountsChangedHandler = (accs) => {
     if (accs.length === 0) {
       disconnectWallet();
@@ -684,37 +651,41 @@ async function initWallet(address) {
       initWallet(accs[0]);
     }
   };
-
   chainChangedHandler = () => {
     window.location.reload();
   };
-
   window.ethereum.on("accountsChanged", accountsChangedHandler);
   window.ethereum.on("chainChanged", chainChangedHandler);
-
   await ensureCorrectChain();
   await loadPresales();
 }
 
 function disconnectWallet() {
+  if (window.ethereum) {
+    if (accountsChangedHandler) {
+      window.ethereum.removeListener("accountsChanged", accountsChangedHandler);
+      accountsChangedHandler = null;
+    }
+    if (chainChangedHandler) {
+      window.ethereum.removeListener("chainChanged", chainChangedHandler);
+      chainChangedHandler = null;
+    }
+  }
+
   userAddress = null;
   signer = null;
   factoryContract = null;
-
   const connectBtnText = document.getElementById("connectBtnText");
   if (connectBtnText) connectBtnText.textContent = "Connect Wallet";
-
   const adminLink = document.getElementById("adminNavLink");
   if (adminLink) adminLink.style.display = "none";
 }
 
 async function ensureCorrectChain() {
   if (!window.ethereum) return;
-
   try {
     const chainId = await window.ethereum.request({ method: "eth_chainId" });
     const currentChainId = parseInt(chainId, 16);
-
     if (currentChainId !== CONFIG.CHAIN_ID) {
       try {
         await window.ethereum.request({
@@ -749,29 +720,39 @@ async function ensureCorrectChain() {
 }
 
 function navigateTo(page) {
+  for (const id in timers) {
+    if (timers[id]) {
+      clearInterval(timers[id]);
+      delete timers[id];
+    }
+  }
+
   document
     .querySelectorAll(".page")
     .forEach((p) => p.classList.remove("active"));
   document
     .querySelectorAll(".nav-link")
     .forEach((l) => l.classList.remove("active"));
-
   const targetPage = document.getElementById(`page-${page}`);
   if (targetPage) targetPage.classList.add("active");
-
-  const navMap = { home: 0, launch: 1, portfolio: 2, admin: 3, detail: 4 };
+  const navMap = {
+    home: 0,
+    launch: 1,
+    portfolio: 2,
+    admin: 3,
+    detail: 4,
+    "lp-locks": 5,
+    "my-lp-locks": 6,
+  };
   const navLinks = document.querySelectorAll(".nav-link");
   const idx = navMap[page];
   if (idx !== undefined && navLinks[idx]) {
     navLinks[idx].classList.add("active");
   }
-
   const hero = document.getElementById("heroSection");
   if (hero) hero.style.display = page === "home" ? "" : "none";
-
   window.scrollTo({ top: 0, behavior: "smooth" });
   closeMobileNav();
-
   if (page === "portfolio" && userAddress) loadPortfolio();
   if (
     page === "admin" &&
@@ -779,6 +760,8 @@ function navigateTo(page) {
   )
     loadAdminData();
   if (page === "launch") resetLaunchForm();
+  if (page === "lp-locks") showLPLockList();
+  if (page === "my-lp-locks") showMyLPLocks();
 }
 
 function resetLaunchForm() {
@@ -788,7 +771,6 @@ function resetLaunchForm() {
   referralEnabled = true;
   logoBase64 = null;
   logoMimeType = null;
-
   const inputsToClear = [
     "tokenAddress",
     "tokenName",
@@ -804,72 +786,55 @@ function resetLaunchForm() {
     "socialDiscord",
     "socialGithub",
   ];
-
   inputsToClear.forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
-
   const nameSymRow = document.getElementById("tokenNameSymbolRow");
   const decRow = document.getElementById("tokenDecimalsRow");
   const infoResult = document.getElementById("tokenInfoResult");
   if (nameSymRow) nameSymRow.style.display = "none";
   if (decRow) decRow.style.display = "none";
   if (infoResult) infoResult.innerHTML = "";
-
   const selDurEl = document.getElementById("selectedDuration");
   if (selDurEl) selDurEl.value = "-1";
-
   const selLpEl = document.getElementById("selectedLpLock");
   if (selLpEl) selLpEl.value = "0";
-
   const durationFeeDisplay = document.getElementById("durationFeeDisplay");
   if (durationFeeDisplay) durationFeeDisplay.style.display = "none";
-
   const durationSel = document.getElementById("durationSelect");
   if (durationSel) durationSel.value = "-1";
-
   const lpLockSelect = document.getElementById("lpLockSelect");
   if (lpLockSelect) lpLockSelect.value = "0";
-
   selectLpLockFromSelect(0);
-
   const toggle = document.getElementById("referralToggle");
   if (toggle && !toggle.classList.contains("on")) {
     toggle.classList.add("on");
   }
-
   const refSettings = document.getElementById("referralSettings");
   if (refSettings) {
     refSettings.style.display = "";
   }
-
   const logoPrev = document.getElementById("logoPreview");
   if (logoPrev) {
     logoPrev.innerHTML =
       '<div class="logo-placeholder">📷<br><small>Klik untuk upload logo<br>(PNG/JPG/SVG, max 2MB)</small></div>';
   }
-
   const logoFileInput = document.getElementById("logoFileInput");
   if (logoFileInput) logoFileInput.value = "";
-
   const liqInput = document.getElementById("liquidityAlloc");
   if (liqInput) {
     liqInput.value = "70";
     updateAllocBreakdown();
   }
-
   const refInput = document.getElementById("referralPct");
   if (refInput) {
     refInput.value = "1";
     updateReferralVal();
   }
-
   const estBox = document.getElementById("estimateBox");
   if (estBox) estBox.innerHTML = "Isi form di atas untuk melihat estimasi";
-
   ["1", "2", "3"].forEach((i) => setApStatus(i, "⏳"));
-
   document
     .querySelectorAll(".step-panel")
     .forEach((p, i) => p.classList.toggle("active", i === 0));
@@ -897,49 +862,51 @@ async function loadPresales() {
       return;
     }
 
-    const activeIds = await Promise.race([
-      contract.getActivePresales(),
-      new Promise((_, reject) =>
-        setTimeout(
-          () => reject(new Error("Timeout")),
-          CONFIG.REQUEST_TIMEOUT_MS,
+    // ========== PERBAIKAN: Pakai Promise.all ==========
+    const [activeIdsResult, countResult] = await Promise.all([
+      Promise.race([
+        contract.getActivePresales(),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Timeout")),
+            CONFIG.REQUEST_TIMEOUT_MS,
+          ),
         ),
-      ),
-    ]).catch((e) => {
-      console.warn("Could not fetch active presales:", e.message);
-      return [];
-    });
+      ]).catch((e) => {
+        console.warn("Could not fetch active presales:", e.message);
+        return [];
+      }),
+      Promise.race([
+        contract.presaleCount(),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Timeout")),
+            CONFIG.REQUEST_TIMEOUT_MS,
+          ),
+        ),
+      ]).catch((e) => {
+        console.warn("Could not fetch presale count:", e.message);
+        return 0n;
+      }),
+    ]);
 
-    const count = await Promise.race([
-      contract.presaleCount(),
-      new Promise((_, reject) =>
-        setTimeout(
-          () => reject(new Error("Timeout")),
-          CONFIG.REQUEST_TIMEOUT_MS,
-        ),
-      ),
-    ]).catch((e) => {
-      console.warn("Could not fetch presale count:", e.message);
-      return 0n;
-    });
+    const activeIds = activeIdsResult;
+    const count = countResult;
 
     const allIds = [];
     const total = Math.min(Number(count), 50);
     for (let i = Number(count) - 1; i >= Number(count) - total && i >= 0; i--) {
       allIds.push(i);
     }
-
     if (allIds.length === 0) {
       presaleCache = [];
       updateStats(presaleCache, 0);
       renderPresaleGrid(presaleCache);
       return;
     }
-
     const results = await Promise.allSettled(
       allIds.map((id) => contract.getPresale(id)),
     );
-
     presaleCache = results
       .map((r, idx) => {
         if (r.status === "fulfilled" && r.value && r.value[0] && r.value[1]) {
@@ -948,7 +915,6 @@ async function loadPresales() {
         return null;
       })
       .filter((item) => item !== null);
-
     updateStats(presaleCache, activeIds.length);
     renderPresaleGrid(presaleCache);
   } catch (e) {
@@ -961,10 +927,8 @@ function updateStats(presales, activeCount) {
   const statPresales = document.getElementById("statPresales");
   const statActive = document.getElementById("statActive");
   const statRaised = document.getElementById("statRaised");
-
   if (statPresales) statPresales.textContent = presales.length;
   if (statActive) statActive.textContent = activeCount;
-
   const totalRaised = presales.reduce(
     (acc, p) => acc + Number(ethers.formatEther(p.state.totalRaised || 0n)),
     0,
@@ -977,10 +941,8 @@ function renderPresaleGrid(presales) {
   const empty = document.getElementById("emptyPresale");
   const loadMoreBtn = document.getElementById("loadMoreBtn");
   if (!grid) return;
-
   let filtered = presales;
   const now = Math.floor(Date.now() / 1000);
-
   if (currentFilter === "active") {
     filtered = presales.filter(
       (p) =>
@@ -995,31 +957,23 @@ function renderPresaleGrid(presales) {
         (p.state.status !== 0n || BigInt(now) >= p.config.endTime),
     );
   }
-
   allFilteredPresales = filtered;
-
   currentPage = 1;
-
   grid.querySelectorAll(".presale-card").forEach((c) => c.remove());
-
   if (filtered.length === 0) {
     if (empty) empty.style.display = "";
     if (loadMoreBtn) loadMoreBtn.style.display = "none";
     return;
   }
   if (empty) empty.style.display = "none";
-
   const start = 0;
   const end = currentPage * ITEMS_PER_PAGE;
   const presalesToShow = filtered.slice(start, end);
-
   presalesToShow.forEach((p) => {
     const card = createPresaleCard(p);
     grid.insertBefore(card, empty);
   });
-
   presalesToShow.forEach((p) => startTimer(p.id, Number(p.config.endTime)));
-
   if (loadMoreBtn) {
     if (filtered.length > currentPage * ITEMS_PER_PAGE) {
       loadMoreBtn.style.display = "flex";
@@ -1045,29 +999,24 @@ function createPresaleCard(p) {
     cfg.totalTokensForSale > 0n
       ? Math.min(100, Number((st.tokensSold * 100n) / cfg.totalTokensForSale))
       : 0;
-
   const card = document.createElement("div");
   card.className = "presale-card";
   card.onclick = () => openPresaleDetail(p.id);
   card.id = `card-${p.id}`;
-
   const logoSrc = cfg.logoIPFSHash
     ? CONFIG.LOGO_URL_BASE + cfg.logoIPFSHash
     : "";
   const logoEl = logoSrc
     ? `<img src="${logoSrc}" class="card-logo" onerror="this.textContent='🪙'" alt="${cfg.tokenName}">`
     : `<div class="card-logo">🪙</div>`;
-
   const raised = formatBNB(Number(ethers.formatEther(st.totalRaised)));
   const price = formatBNB(Number(ethers.formatEther(cfg.pricePerToken)));
-
   const lockDur = Number(cfg.lpLockDuration ?? 0);
   const lockOpt = CONFIG.LP_LOCK_OPTIONS[lockDur] || CONFIG.LP_LOCK_OPTIONS[0];
   const lpBadge = `<span class="badge ${lockOpt.badgeClass} badge-card-lp">${lockOpt.badge}</span>`;
   const trustedB = lockOpt.trusted
     ? `<span class="badge badge-trusted badge-card-lp">⭐ Trusted</span>`
     : "";
-
   card.innerHTML = `
     <div class="card-banner">
       <div class="card-logo-wrap">${logoEl}</div>
@@ -1104,10 +1053,8 @@ function filterPresales(filter, btn) {
 
 function startTimer(id, endTime) {
   if (timers[id]) clearInterval(timers[id]);
-
   const el = document.getElementById(`timer-${id}`);
   if (!el) return;
-
   const update = () => {
     const diff = endTime - Math.floor(Date.now() / 1000);
     if (diff <= 0) {
@@ -1128,12 +1075,10 @@ function startTimer(id, endTime) {
 async function openPresaleDetail(id) {
   currentPresaleId = id;
   navigateTo("detail");
-
   const container = document.getElementById("presaleDetailContent");
   if (!container) return;
   container.innerHTML =
     '<div style="text-align:center;padding:3rem;color:var(--text3)">Memuat data...</div>';
-
   try {
     let data = presaleCache.find((p) => p.id === id);
     if (!data && factoryContract) {
@@ -1141,7 +1086,6 @@ async function openPresaleDetail(id) {
       data = { id: id, config: rawData[0], state: rawData[1] };
     }
     if (!data) throw new Error("Presale not found");
-
     const cfg = data.config;
     const st = data.state;
     const now = Math.floor(Date.now() / 1000);
@@ -1150,7 +1094,6 @@ async function openPresaleDetail(id) {
       cfg.totalTokensForSale > 0n
         ? Math.min(100, Number((st.tokensSold * 100n) / cfg.totalTokensForSale))
         : 0;
-
     const logo = cfg.logoIPFSHash
       ? CONFIG.LOGO_URL_BASE + cfg.logoIPFSHash
       : "";
@@ -1163,7 +1106,6 @@ async function openPresaleDetail(id) {
     const liqBps = Number(cfg.liquidityAllocBps) / 100;
     const devBps = Number(cfg.devAllocBps) / 100;
     const refBps = cfg.referralEnabled ? Number(cfg.referralBps) / 100 : 0;
-
     const socials = cfg.socials;
     const socialLinks = [
       socials.website
@@ -1182,7 +1124,6 @@ async function openPresaleDetail(id) {
         ? `<a href="${escHtml(socials.github)}" target="_blank" class="social-btn">📦 GitHub</a>`
         : "",
     ].join("");
-
     const durLabel =
       ["1 Hari", "1 Minggu", "1 Bulan"][Number(cfg.duration)] || "—";
     const endDate = new Date(Number(cfg.endTime) * 1000).toLocaleString(
@@ -1199,7 +1140,6 @@ async function openPresaleDetail(id) {
       rawRef.toLowerCase() !== (userAddress || "").toLowerCase()
         ? rawRef
         : "";
-
     const buySection = ended
       ? `
       <div class="info-box">
@@ -1223,7 +1163,6 @@ async function openPresaleDetail(id) {
       ${cfg.referralEnabled ? `<div class="ref-input-wrap"><label>Alamat Referral (opsional)</label><input type="text" class="buy-input" id="buyRefAddr" value="${storedRef}" placeholder="0x..."></div>` : ""}
       <button class="btn-primary btn-full" onclick="buyTokens(${id})" id="btnBuy">💰 Beli Token</button>
     `;
-
     container.innerHTML = `
       <div class="detail-grid">
         <div class="detail-main">
@@ -1255,7 +1194,6 @@ async function openPresaleDetail(id) {
         <div class="detail-side"><div class="buy-card"><div class="buy-card-title">${ended ? "📦 Klaim Token" : "💰 Beli Token"}</div>${ended ? "" : `<div style="font-size:0.8rem;margin-bottom:1rem">⏱ <span id="detailTimer">...</span></div>`}${buySection}</div></div>
       </div>
     `;
-
     if (userAddress && factoryContract && !ended) {
       try {
         const buyerInfo = await factoryContract.getBuyerInfo(id, userAddress);
@@ -1267,11 +1205,8 @@ async function openPresaleDetail(id) {
         );
         const userClaimed = buyerInfo.claimed;
         const userReferredBy = buyerInfo.referredBy;
-
         const referralEarnings = await getPresaleReferralEarnings(id);
-
         let userInfoHtml = "";
-
         if (userContributed > 0 || referralEarnings > 0) {
           userInfoHtml = `
             <div class="info-box" style="margin-top:1.5rem; background:rgba(59,130,246,0.05); border-color:rgba(59,130,246,0.2);">
@@ -1303,16 +1238,13 @@ async function openPresaleDetail(id) {
             </div>
           `;
         }
-
         const userPurchaseDiv = container.querySelector("#userPurchaseInfo");
-        if (userPurchaseDiv && userInfoHtml) {
+        if (userPurchaseDiv && userInfoHtml)
           userPurchaseDiv.innerHTML = userInfoHtml;
-        }
       } catch (e) {
         console.warn("Could not fetch buyer info:", e);
       }
     }
-
     if (!ended) {
       const dtEl = document.getElementById("detailTimer");
       if (dtEl) {
@@ -1332,14 +1264,12 @@ async function openPresaleDetail(id) {
         tick();
       }
     }
-
     const lpContainer = document.getElementById("lpLockSectionContainer");
     if (lpContainer && factoryContract) {
       renderLpLockSection(id, cfg, st).then((html) => {
         if (lpContainer) lpContainer.innerHTML = html;
       });
     }
-
     const shareUrl = `${window.location.origin}${window.location.pathname}?presale=${id}`;
     const shareText = `🚀 Cek presale token ${escHtml(cfg.tokenName)} di RecehLaunch! Harga: ${price} BNB`;
     injectShareButtons(`shareButtons-${id}`, shareText, shareUrl);
@@ -1386,7 +1316,6 @@ function injectShareButtons(containerId, text, url) {
 function calcBuyAmount(presaleId) {
   const p = presaleCache.find((p) => p.id === presaleId);
   if (!p) return;
-
   const amtStr = document.getElementById("buyBnbAmount")?.value;
   const amt = parseFloat(amtStr);
   if (isNaN(amt) || amt <= 0) {
@@ -1398,12 +1327,10 @@ function calcBuyAmount(presaleId) {
     if (ctot) ctot.textContent = "—";
     return;
   }
-
   const price = Number(ethers.formatEther(p.config.pricePerToken));
   const refBps = Number(p.config.referralBps);
   const tokens = amt / price;
   const refDisc = (amt * refBps) / 10000;
-
   const ct = document.getElementById("calcTokens");
   const cr = document.getElementById("calcRefDisc");
   const ctot = document.getElementById("calcTotal");
@@ -1418,14 +1345,12 @@ async function buyTokens(presaleId) {
     showToast("Hubungkan wallet dulu!", "warn");
     return;
   }
-
   const amtEl = document.getElementById("buyBnbAmount");
   const amt = parseFloat(amtEl?.value || "0");
   if (isNaN(amt) || amt <= 0) {
     showToast("Masukkan jumlah BNB yang valid", "warn");
     return;
   }
-
   const refEl = document.getElementById("buyRefAddr");
   let refAdr = refEl?.value?.trim() || "";
   if (!ethers.isAddress(refAdr) || refAdr === ethers.ZeroAddress) {
@@ -1434,38 +1359,69 @@ async function buyTokens(presaleId) {
     showToast("⚠️ Kamu tidak bisa merujuk dirimu sendiri", "warn");
     refAdr = ethers.ZeroAddress;
   }
-
   const amtWei = ethers.parseEther(amt.toString());
-  const originalText =
-    document.getElementById("btnBuy")?.textContent || "💰 Beli Token";
-  setLoading("btnBuy", true, "⏳ Memproses...");
-
+  const scrollPosition = window.scrollY;
+  let tokenData = presaleCache.find((p) => p.id === presaleId);
+  if (!tokenData && factoryContract) {
+    const rawData = await factoryContract.getPresale(presaleId);
+    tokenData = { id: presaleId, config: rawData[0], state: rawData[1] };
+  }
+  const tokenName = tokenData?.config?.tokenName || "Token";
+  const tokenSymbol = tokenData?.config?.tokenSymbol || "";
+  const price = Number(
+    ethers.formatEther(tokenData?.config?.pricePerToken || 0),
+  );
+  const tokensReceived = amt / price;
+  showTxModal(
+    "🔄 Memproses Pembelian",
+    `Membeli ${tokenName} (${tokenSymbol})`,
+    `Jumlah: ${amt} BNB → ± ${formatNum(tokensReceived)} ${tokenSymbol}`,
+    "⏳",
+  );
   try {
     const balance = await provider.getBalance(userAddress);
     if (balance < amtWei) {
-      showToast(
-        `❌ Saldo BNB tidak cukup. Kamu punya ${formatBNB(Number(ethers.formatEther(balance)))} BNB`,
-        "error",
+      showTxError(
+        "❌ Saldo Tidak Cukup",
+        `Kamu memiliki ${formatBNB(Number(ethers.formatEther(balance)))} BNB`,
+        `Dibutuhkan: ${amt} BNB`,
       );
       return;
     }
-
-    showToast("⏳ Konfirmasi di wallet...", "info");
+    updateTxModal("⏳ Konfirmasi di wallet Anda...", "", 30);
     const tx = await factoryContract.buyTokens(presaleId, refAdr, {
       value: amtWei,
     });
-    showToast("⏳ Transaksi dikirim, menunggu konfirmasi...", "info");
+    updateTxModal(
+      "⏳ Menunggu konfirmasi blockchain...",
+      `Tx: ${tx.hash.slice(0, 18)}...`,
+      60,
+    );
     await tx.wait();
-
     localStorage.removeItem("rl_referrer");
-    showToast("✅ Berhasil! Token sudah dialokasikan.", "success");
+    showTxSuccess(
+      "✅ Pembelian Berhasil!",
+      `Anda berhasil membeli ${formatNum(tokensReceived)} ${tokenSymbol}`,
+      `Nilai: ${formatBNB(amt)} BNB`,
+      4000,
+    );
     if (amtEl) amtEl.value = "";
+    const calcTokens = document.getElementById("calcTokens");
+    const calcTotal = document.getElementById("calcTotal");
+    if (calcTokens) calcTokens.textContent = "—";
+    if (calcTotal) calcTotal.textContent = "—";
     await loadPresales();
     await openPresaleDetail(presaleId);
+    setTimeout(() => {
+      window.scrollTo({ top: scrollPosition, behavior: "instant" });
+    }, 100);
   } catch (e) {
-    showToast(`❌ ${e.reason || e.message || "Transaksi gagal"}`, "error");
-  } finally {
-    setLoading("btnBuy", false, originalText);
+    console.error(e);
+    showTxError(
+      "❌ Transaksi Gagal",
+      e.reason || e.message || "Terjadi kesalahan",
+      "Silakan coba lagi",
+    );
   }
 }
 
@@ -1474,15 +1430,45 @@ async function claimTokens(presaleId) {
     showToast("Hubungkan wallet dulu!", "warn");
     return;
   }
+  const data = await factoryContract.getPresale(presaleId);
+  const tokenSymbol = data.config.tokenSymbol;
+  const buyerInfo = await factoryContract.getBuyerInfo(presaleId, userAddress);
+  const tokenAmount = Number(ethers.formatEther(buyerInfo.tokensAllocated));
+  showTxModal(
+    "Klaim Token",
+    `Mengklaim ${formatNum(tokenAmount)} ${tokenSymbol}...`,
+    "Mohon konfirmasi di wallet",
+    "⏳",
+  );
   try {
-    showToast("⏳ Mengklaim token...", "info");
+    updateTxModal("Menunggu konfirmasi...", "", 50);
     const tx = await factoryContract.claimTokens(presaleId);
+    updateTxModal(
+      "Memproses transaksi...",
+      `Tx: ${tx.hash.slice(0, 16)}...`,
+      70,
+    );
     await tx.wait();
-    showToast("✅ Token berhasil diklaim!", "success");
+    showTxSuccess(
+      "✅ Klaim Berhasil!",
+      `${formatNum(tokenAmount)} ${tokenSymbol} sudah masuk ke wallet Anda`,
+      "",
+      3000,
+    );
     await loadPresales();
-    await openPresaleDetail(presaleId);
+    if (
+      currentPresaleId === presaleId &&
+      document.getElementById("page-detail").classList.contains("active")
+    ) {
+      await openPresaleDetail(presaleId);
+    }
+    if (
+      document.getElementById("page-portfolio").classList.contains("active")
+    ) {
+      await loadPortfolio();
+    }
   } catch (e) {
-    showToast(`❌ ${e.reason || e.message}`, "error");
+    showTxError("Klaim Gagal", e.reason || e.message, "Silakan coba lagi");
   }
 }
 
@@ -1491,124 +1477,94 @@ async function finalizeAndLiquidity(presaleId) {
     showToast("Hubungkan wallet dulu!", "warn");
     return;
   }
-
   const btn = document.activeElement;
   let originalText = "Finalize";
   if (btn && btn.textContent) {
     originalText = btn.textContent;
     btn.disabled = true;
   }
-
+  showTxModal(
+    "⚡ Finalisasi Presale",
+    "Memproses finalisasi dan penambahan likuiditas...",
+    "Mohon konfirmasi di wallet Anda",
+    "⏳",
+  );
   try {
     const data = await factoryContract.getPresale(presaleId);
     const cfg = data.config;
     const st = data.state;
-
     const totalRaisedNum = Number(ethers.formatEther(st.totalRaised || 0n));
-
     if (totalRaisedNum === 0) {
-      showToast(
-        "⚠️ Tidak ada dana yang terkumpul, tidak perlu finalisasi",
-        "warn",
+      showTxError(
+        "Informasi",
+        "Tidak ada dana yang terkumpul, tidak perlu finalisasi",
+        "",
       );
       if (btn) btn.disabled = false;
       return;
     }
-
     const bnbForLiquidity =
       totalRaisedNum * (Number(cfg.liquidityAllocBps) / 10000);
-
     const tokensNeededForLiquidity =
       bnbForLiquidity / Number(ethers.formatEther(cfg.listingPrice));
-
     const totalTokensInContract = Number(
       ethers.formatEther(cfg.totalTokensForSale),
     );
     const tokensSoldNum = Number(ethers.formatEther(st.tokensSold));
     const unsoldTokens = totalTokensInContract - tokensSoldNum;
-
-    console.log("=== Detail Perhitungan ===");
-    console.log("Total raised:", totalRaisedNum, "BNB");
-    console.log("BNB untuk likuiditas:", bnbForLiquidity, "BNB");
-    console.log(
-      "Harga listing:",
-      Number(ethers.formatEther(cfg.listingPrice)),
-      "BNB",
+    updateTxModal(
+      "Memeriksa ketersediaan token...",
+      `Token tersisa: ${unsoldTokens.toFixed(2)}`,
+      20,
     );
-    console.log("Token dibutuhkan untuk likuiditas:", tokensNeededForLiquidity);
-    console.log("Total token di kontrak:", totalTokensInContract);
-    console.log("Token terjual:", tokensSoldNum);
-    console.log("Token sisa (belum laku):", unsoldTokens);
-
     if (unsoldTokens < tokensNeededForLiquidity) {
       const shortfall = tokensNeededForLiquidity - unsoldTokens;
-
-      const doTopUp = confirm(
-        `⚠️ TOKEN TIDAK CUKUP UNTUK LIKUIDITAS!\n\n` +
-          `📊 Status Presale:\n` +
-          `• Token terjual: ${tokensSoldNum.toFixed(2)} token\n` +
-          `• Token sisa di kontrak: ${unsoldTokens.toFixed(2)} token\n` +
-          `• Token dibutuhkan untuk likuiditas: ${tokensNeededForLiquidity.toFixed(2)} token\n\n` +
-          `💰 Kekurangan: ${shortfall.toFixed(2)} token\n\n` +
-          `Klik OK untuk menambah token dari wallet Anda ke kontrak.\n` +
-          `Klik Cancel jika ingin membatalkan.`,
+      updateTxModal(
+        "Token tidak cukup",
+        `Kekurangan: ${shortfall.toFixed(2)} token. Menambah token...`,
+        30,
       );
-
-      if (!doTopUp) {
-        if (btn) btn.disabled = false;
-        return;
-      }
-
       const shortfallWei = ethers.parseEther(Math.ceil(shortfall).toString());
       const tokenErc20 = new ethers.Contract(
         cfg.tokenContract,
         ERC20_ABI,
         signer,
       );
-
       const creatorBalance = await tokenErc20.balanceOf(userAddress);
       if (creatorBalance < shortfallWei) {
-        showToast(
-          `❌ Saldo token Anda tidak cukup. Butuh minimal ${shortfall.toFixed(2)} token`,
-          "error",
+        showTxError(
+          "Gagal",
+          `Saldo token tidak cukup. Butuh minimal ${shortfall.toFixed(2)} token tambahan`,
+          "",
         );
         if (btn) btn.disabled = false;
         return;
       }
-
-      showToast("⏳ Menyetujui transfer token...", "info");
+      updateTxModal("Menyetujui transfer token...", "", 40);
       const approveTx = await tokenErc20.approve(
         CONFIG.PRESALE_FACTORY_ADDRESS,
         shortfallWei,
       );
       await approveTx.wait();
-
-      showToast("⏳ Menambah token ke kontrak presale...", "info");
+      updateTxModal("Menambah token ke kontrak...", "", 50);
       const depositTx = await factoryContract.depositTokensForLiquidity(
         presaleId,
         shortfallWei,
       );
       await depositTx.wait();
-      showToast("✅ Token berhasil ditambahkan!", "success");
     }
-
-    showToast("⏳ Memfinalisasi presale...", "info");
+    updateTxModal("Memfinalisasi presale...", "", 60);
     const tx1 = await factoryContract.finalizePresale(presaleId);
     await tx1.wait();
-    showToast("✅ Presale berhasil difinalisasi!", "success");
-
     const freshData = await factoryContract.getPresale(presaleId);
     const freshSt = freshData.state;
     const freshTotalRaised = Number(
       ethers.formatEther(freshSt.totalRaised || 0n),
     );
-
     const finalBnbForLiquidity =
       freshTotalRaised * (Number(cfg.liquidityAllocBps) / 10000);
-
     const finalTokensForLiquidity =
       finalBnbForLiquidity / Number(ethers.formatEther(cfg.listingPrice));
-
     const slippageBps = CONFIG.DEFAULT_SLIPPAGE_BPS;
     const amountTokenMin = ethers.parseEther(
       ((finalTokensForLiquidity * (10000 - slippageBps)) / 10000).toString(),
@@ -1616,25 +1572,30 @@ async function finalizeAndLiquidity(presaleId) {
     const amountETHMin = ethers.parseEther(
       ((finalBnbForLiquidity * (10000 - slippageBps)) / 10000).toString(),
     );
-
-    showToast("⏳ Menambah likuiditas ke DEX...", "info");
+    updateTxModal("Menambah likuiditas ke DEX...", "", 80);
     const tx2 = await factoryContract.addLiquidityToDex(
       presaleId,
       amountTokenMin,
       amountETHMin,
     );
     await tx2.wait();
-
-    showToast(
-      "✅ Presale selesai! Likuiditas berhasil ditambahkan!",
-      "success",
+    showTxSuccess(
+      "✅ Presale Selesai!",
+      `Likuiditas berhasil ditambahkan!`,
+      `Total likuiditas: ${formatBNB(finalBnbForLiquidity)} BNB`,
+      4000,
     );
     await loadPresales();
-    await openPresaleDetail(presaleId);
+    if (
+      document.getElementById("page-portfolio").classList.contains("active")
+    ) {
+      await loadPortfolio();
+    } else if (currentPresaleId === presaleId) {
+      await openPresaleDetail(presaleId);
+    }
   } catch (e) {
     console.error("Finalize error:", e);
     let errorMsg = e.reason || e.message;
-
     if (errorMsg.includes("Insufficient tokens for liquidity")) {
       errorMsg =
         "Token tidak cukup untuk likuiditas. Pastikan Anda sudah menambah token sisa ke kontrak.";
@@ -1643,14 +1604,14 @@ async function finalizeAndLiquidity(presaleId) {
     } else if (errorMsg.includes("user rejected")) {
       errorMsg = "Transaksi dibatalkan di wallet.";
     }
-
-    showToast(`❌ ${errorMsg}`, "error");
+    showTxError("Finalisasi Gagal", errorMsg, "Silakan coba lagi");
   } finally {
     if (btn) btn.disabled = false;
   }
 }
 
 function goToStep(step) {
+  step = parseInt(step, 10);
   if (step > currentStep && !validateStep(currentStep)) return;
   currentStep = step;
   document
@@ -1694,14 +1655,16 @@ function validateStep(step) {
     );
     const dur = parseInt(
       document.getElementById("selectedDuration")?.value || "-1",
+      10,
     );
     const lpLock = parseInt(
       document.getElementById("selectedLpLock")?.value || "0",
+      10,
     );
     const decimals = parseInt(
       document.getElementById("tokenDecimals")?.value || "18",
+      10,
     );
-
     if (!tokens || tokens <= 0) {
       showToast("Jumlah token harus lebih dari 0", "warn");
       return false;
@@ -1722,7 +1685,6 @@ function validateStep(step) {
       showToast("Pilih durasi LP Lock", "warn");
       return false;
     }
-
     try {
       const tokenUnits = tokens.toString();
       if (tokenUnits.includes(".") && decimals === 0) {
@@ -1763,7 +1725,6 @@ async function fetchTokenInfo() {
   const addr = document.getElementById("tokenAddress")?.value?.trim() || "";
   const resultEl = document.getElementById("tokenInfoResult");
   if (!resultEl) return;
-
   if (!ethers.isAddress(addr)) {
     resultEl.innerHTML = "";
     const nameSymRow = document.getElementById("tokenNameSymbolRow");
@@ -1772,10 +1733,8 @@ async function fetchTokenInfo() {
     if (decRow) decRow.style.display = "none";
     return;
   }
-
   resultEl.innerHTML =
     '<div class="token-info-result loading">⏳ Mengambil info token...</div>';
-
   try {
     const token = new ethers.Contract(addr, ERC20_ABI, rpcProvider);
     const [name, symbol, decimals, totalSupply] = await Promise.all([
@@ -1784,14 +1743,12 @@ async function fetchTokenInfo() {
       token.decimals().catch(() => 18),
       token.totalSupply().catch(() => 0n),
     ]);
-
     const tn = document.getElementById("tokenName");
     const ts = document.getElementById("tokenSymbol");
     const td = document.getElementById("tokenDecimals");
     if (tn) tn.value = name;
     if (ts) ts.value = symbol;
     if (td) td.value = decimals.toString();
-
     resultEl.innerHTML = `<div class="token-info-result">✅ Token valid — Supply: <strong>${formatNum(Number(ethers.formatUnits(totalSupply, decimals)))} ${escHtml(symbol)}</strong></div>`;
     const nameSymRow = document.getElementById("tokenNameSymbolRow");
     const decRow = document.getElementById("tokenDecimalsRow");
@@ -1825,16 +1782,13 @@ function previewLogo(input) {
 }
 
 function selectLpLockFromSelect(val) {
-  selectedLpLock = parseInt(val);
-
+  selectedLpLock = parseInt(val, 10);
   const hiddenEl = document.getElementById("selectedLpLock");
   if (hiddenEl) hiddenEl.value = selectedLpLock;
-
   const previewEl = document.getElementById("lpLockBadgePreview");
   if (previewEl) {
     previewEl.innerHTML = getLpLockBadgeHtml(selectedLpLock);
   }
-
   const reminderEl = document.getElementById("lpLockReminder");
   if (reminderEl) {
     if (selectedLpLock === 3) {
@@ -1851,7 +1805,6 @@ function selectLpLockFromSelect(val) {
       reminderEl.style.color = "var(--success)";
     }
   }
-
   recalcAlloc();
 }
 
@@ -1873,15 +1826,12 @@ async function renderLpLockSection(presaleId, cfg, st) {
   const lockDur = Number(cfg.lpLockDuration);
   const badgeHtml = getLpLockBadgeHtml(lockDur);
   let detailHtml = "";
-
   if (st.liquidityAdded && factoryContract) {
     try {
       const info = await factoryContract.getLPLockInfo(presaleId);
       const unlockAt = Number(info.unlockAt);
       const now = Math.floor(Date.now() / 1000);
       const isUnlocked = info.isUnlocked;
-      const lpToken = info.lpToken;
-
       if (lockDur === 3) {
         detailHtml = `<div class="lp-lock-detail perm">🔥 LP Token terkunci <strong>SELAMANYA</strong> di kontrak.</div>`;
       } else if (isUnlocked && !info.withdrawn) {
@@ -1901,12 +1851,11 @@ async function renderLpLockSection(presaleId, cfg, st) {
     const labels = ["30 hari", "6 bulan", "1 tahun", "PERMANEN"];
     detailHtml = `<div class="lp-lock-detail info">⏳ LP akan dikunci selama <strong>${labels[lockDur]}</strong> setelah likuiditas ditambahkan.</div>`;
   }
-
   return `<div class="lp-lock-section"><div class="lp-lock-header"><span class="lp-lock-title">🔐 LP Lock</span><div class="lp-lock-badges">${badgeHtml}</div></div>${detailHtml}</div>`;
 }
 
 function selectDurationFromSelect(val) {
-  const idx = parseInt(val);
+  const idx = parseInt(val, 10);
   selectedDuration = idx;
   const selDur = document.getElementById("selectedDuration");
   if (selDur) selDur.value = idx;
@@ -1931,13 +1880,13 @@ function recalcAlloc() {
   );
   const liq = parseInt(
     document.getElementById("liquidityAlloc")?.value || "70",
+    10,
   );
   const ref = referralEnabled
-    ? parseInt(document.getElementById("referralPct")?.value || "0")
+    ? parseInt(document.getElementById("referralPct")?.value || "0", 10)
     : 0;
   const platform = 5;
   const dev = 100 - liq - platform - ref;
-
   const box = document.getElementById("estimateBox");
   if (box && tokens > 0 && price > 0) {
     box.innerHTML = `<div>Maksimal Raise: <strong style="color:var(--accent)">${formatBNB(tokens * price)} BNB</strong></div>
@@ -1950,18 +1899,13 @@ function recalcAlloc() {
 function updateAllocBreakdown() {
   let liqInput = document.getElementById("liquidityAlloc")?.value;
   let refInput = document.getElementById("referralPct")?.value;
-
-  // Gunakan nilai default jika kosong
-  let liq = liqInput === "" || liqInput === null ? 70 : parseInt(liqInput);
+  let liq = liqInput === "" || liqInput === null ? 70 : parseInt(liqInput, 10);
   let ref = referralEnabled
     ? refInput === "" || refInput === null
       ? 1
-      : parseInt(refInput)
+      : parseInt(refInput, 10)
     : 0;
-
   const platform = 5;
-
-  // Validasi hanya jika nilai valid
   if (!isNaN(liq)) {
     if (liq < CONFIG.MIN_LIQUIDITY_PERCENT) {
       liq = CONFIG.MIN_LIQUIDITY_PERCENT;
@@ -1984,7 +1928,6 @@ function updateAllocBreakdown() {
   } else {
     liq = 70;
   }
-
   if (!isNaN(ref) && referralEnabled) {
     if (ref < CONFIG.MIN_REFERRAL_PERCENT) {
       ref = CONFIG.MIN_REFERRAL_PERCENT;
@@ -2009,9 +1952,7 @@ function updateAllocBreakdown() {
   } else {
     ref = 1;
   }
-
   let dev = 100 - liq - platform - ref;
-
   if (dev < CONFIG.MIN_DEV_PERCENT) {
     const maxAllowedRef = 100 - platform - liq - CONFIG.MIN_DEV_PERCENT;
     if (maxAllowedRef >= CONFIG.MIN_REFERRAL_PERCENT && referralEnabled) {
@@ -2034,12 +1975,10 @@ function updateAllocBreakdown() {
     }
     dev = CONFIG.MIN_DEV_PERCENT;
   }
-
   const liqVal = document.getElementById("liquidityAllocVal");
   const abLiq = document.getElementById("ab-liquidity");
   const abDev = document.getElementById("ab-dev");
   const abRef = document.getElementById("ab-referral");
-
   if (liqVal) liqVal.textContent = `${liq}%`;
   if (abLiq) abLiq.textContent = `${liq}%`;
   if (abDev) abDev.textContent = `${dev >= 0 ? dev : 0}%`;
@@ -2052,12 +1991,14 @@ function toggleReferral() {
   if (toggle) toggle.classList.toggle("on", referralEnabled);
   const refSettings = document.getElementById("referralSettings");
   if (refSettings) refSettings.style.display = referralEnabled ? "" : "none";
-
   if (!referralEnabled) {
     updateAllocBreakdown();
     recalcAlloc();
   } else {
-    let refVal = parseInt(document.getElementById("referralPct")?.value || "1");
+    let refVal = parseInt(
+      document.getElementById("referralPct")?.value || "1",
+      10,
+    );
     if (refVal < 1) {
       const refInput = document.getElementById("referralPct");
       if (refInput) refInput.value = "1";
@@ -2069,27 +2010,21 @@ function toggleReferral() {
 }
 
 let referralTimeout = null;
-
 function updateReferralVal() {
   if (referralTimeout) clearTimeout(referralTimeout);
-
   referralTimeout = setTimeout(() => {
     let val = document.getElementById("referralPct")?.value;
-
     if (val === "" || val === null) {
       updateAllocBreakdown();
       recalcAlloc();
       return;
     }
-
-    val = parseInt(val);
-
+    val = parseInt(val, 10);
     if (isNaN(val)) {
       updateAllocBreakdown();
       recalcAlloc();
       return;
     }
-
     if (val < CONFIG.MIN_REFERRAL_PERCENT) {
       val = CONFIG.MIN_REFERRAL_PERCENT;
       const refInput = document.getElementById("referralPct");
@@ -2108,39 +2043,31 @@ function updateReferralVal() {
         "warn",
       );
     }
-
     const pctVal = document.getElementById("referralPctVal");
     const pctDisplay = document.getElementById("refPctDisplay");
     if (pctVal) pctVal.textContent = `${val}%`;
     if (pctDisplay) pctDisplay.textContent = `${val}%`;
-
     updateAllocBreakdown();
     recalcAlloc();
-  }, 3000);
+  }, 300);
 }
 
 let liquidityTimeout = null;
-
 function updateLiquidityVal() {
   if (liquidityTimeout) clearTimeout(liquidityTimeout);
-
   liquidityTimeout = setTimeout(() => {
     let val = document.getElementById("liquidityAlloc")?.value;
-
     if (val === "" || val === null) {
       updateAllocBreakdown();
       recalcAlloc();
       return;
     }
-
-    val = parseInt(val);
-
+    val = parseInt(val, 10);
     if (isNaN(val)) {
       updateAllocBreakdown();
       recalcAlloc();
       return;
     }
-
     if (val < CONFIG.MIN_LIQUIDITY_PERCENT) {
       val = CONFIG.MIN_LIQUIDITY_PERCENT;
       const liqInput = document.getElementById("liquidityAlloc");
@@ -2159,10 +2086,9 @@ function updateLiquidityVal() {
         "warn",
       );
     }
-
     updateAllocBreakdown();
     recalcAlloc();
-  }, 3000);
+  }, 300);
 }
 
 function buildConfirmCard() {
@@ -2174,13 +2100,15 @@ function buildConfirmCard() {
   const listing = document.getElementById("listingPrice")?.value || "0";
   const dur = parseInt(
     document.getElementById("selectedDuration")?.value || "-1",
+    10,
   );
   const liq = parseInt(
     document.getElementById("liquidityAlloc")?.value || "70",
+    10,
   );
   const refOn = referralEnabled;
   const refPct = referralEnabled
-    ? parseInt(document.getElementById("referralPct")?.value || "0")
+    ? parseInt(document.getElementById("referralPct")?.value || "0", 10)
     : 0;
   const platform = 5;
   const dev = 100 - liq - platform - refPct;
@@ -2195,10 +2123,8 @@ function buildConfirmCard() {
   const trustedBadge = lpOpt.trusted
     ? `<span class="badge badge-trusted" style="margin-left:0.4rem">⭐ Trusted</span>`
     : "";
-
   const confirmCard = document.getElementById("confirmCard");
   if (!confirmCard) return;
-
   confirmCard.innerHTML = `
     <div class="confirm-row"><span class="confirm-label">Token</span><span class="confirm-val">${escHtml(name)} (${escHtml(symbol)})</span></div>
     <div class="confirm-row"><span class="confirm-label">Kontrak</span><span class="confirm-val" style="font-size:0.7rem">${addr}</span></div>
@@ -2222,7 +2148,6 @@ async function launchPresale() {
     showToast("Hubungkan wallet dulu!", "warn");
     return;
   }
-
   const tokenAddr = document.getElementById("tokenAddress")?.value || "";
   const tokenName = document.getElementById("tokenName")?.value || "";
   const tokenSymbol = document.getElementById("tokenSymbol")?.value || "";
@@ -2231,12 +2156,14 @@ async function launchPresale() {
   const priceWei = document.getElementById("pricePerToken")?.value || "0";
   const listingWei = document.getElementById("listingPrice")?.value || "0";
   const liqBps =
-    parseInt(document.getElementById("liquidityAlloc")?.value || "70") * 100;
+    parseInt(document.getElementById("liquidityAlloc")?.value || "70", 10) *
+    100;
   const dur = parseInt(
     document.getElementById("selectedDuration")?.value || "-1",
+    10,
   );
   const refPct = referralEnabled
-    ? parseInt(document.getElementById("referralPct")?.value || "0") * 100
+    ? parseInt(document.getElementById("referralPct")?.value || "0", 10) * 100
     : 0;
   const lpLock = selectedLpLock;
   const website = document.getElementById("socialWebsite")?.value || "";
@@ -2244,13 +2171,11 @@ async function launchPresale() {
   const telegram = document.getElementById("socialTelegram")?.value || "";
   const discord = document.getElementById("socialDiscord")?.value || "";
   const github = document.getElementById("socialGithub")?.value || "";
-
   const decimalsEl = document.getElementById("tokenDecimals");
   const tokenDecimals =
-    decimalsEl && decimalsEl.value ? parseInt(decimalsEl.value) : 18;
+    decimalsEl && decimalsEl.value ? parseInt(decimalsEl.value, 10) : 18;
   const fees = [CONFIG.FEE_1_DAY, CONFIG.FEE_1_WEEK, CONFIG.FEE_1_MONTH];
   const feeWei = BigInt(fees[dur]);
-
   let totalTokensWei;
   try {
     totalTokensWei = ethers.parseUnits(totalTokens.toString(), tokenDecimals);
@@ -2261,20 +2186,16 @@ async function launchPresale() {
     );
     return;
   }
-
   const pricePerTokenWei = ethers.parseEther(priceWei.toString());
   const listingPriceWei = ethers.parseEther(listingWei.toString());
-
   let logoHash = "";
   if (logoBase64) logoHash = await uploadLogoToServer(logoBase64, logoMimeType);
-
   const btn = document.getElementById("btnLaunch");
   const originalText = btn?.textContent || "🚀 Launch Presale";
   if (btn) {
     btn.disabled = true;
     btn.textContent = "Memproses...";
   }
-
   try {
     setApStatus(1, "⏳");
     const tokenContract = new ethers.Contract(tokenAddr, ERC20_ABI, signer);
@@ -2291,7 +2212,6 @@ async function launchPresale() {
       await tx.wait();
     }
     setApStatus(1, "✅");
-
     setApStatus(2, "⏳");
     const bnbBalance = await provider.getBalance(userAddress);
     if (bnbBalance < feeWei) {
@@ -2303,10 +2223,8 @@ async function launchPresale() {
       return;
     }
     setApStatus(2, "✅");
-
     setApStatus(3, "⏳");
     showToast("⏳ Meluncurkan presale...", "info");
-
     const tx3 = await factoryContract.createPresale(
       tokenAddr,
       tokenName,
@@ -2326,7 +2244,6 @@ async function launchPresale() {
     );
     await tx3.wait();
     setApStatus(3, "✅");
-
     showToast("🚀 Presale berhasil diluncurkan!", "success");
     await loadPresales();
     resetLaunchForm();
@@ -2347,6 +2264,314 @@ function setApStatus(num, icon) {
   if (el) el.textContent = icon;
 }
 
+// ==================== LP LOCK FUNCTIONS ====================
+
+async function showLPLockList() {
+  await renderLPLocks("lpLockListContent", "all");
+}
+
+async function showMyLPLocks() {
+  if (!userAddress) {
+    showToast("Hubungkan wallet dulu!", "warn");
+    const container = document.getElementById("myLPLockContent");
+    if (container) {
+      container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔐</div><p>Hubungkan wallet untuk melihat LP Lock milikmu</p><button class="btn-primary" onclick="connectWallet()">Connect Wallet</button></div>`;
+    }
+    return;
+  }
+  await renderLPLocks("myLPLockContent", "my", userAddress);
+}
+
+// ========== FUNGSI HELPER ==========
+async function renderLPLocks(containerId, filterType, userAddr = null) {
+  const container = document.getElementById(containerId);
+  if (!container) return false;
+
+  container.innerHTML =
+    '<div style="text-align:center;padding:3rem">⏳ Memuat data LP Lock...</div>';
+
+  try {
+    const contract = getReadOnlyContract();
+    if (!contract) throw new Error("Kontrak tidak terhubung");
+
+    let presaleIds = [];
+
+    if (filterType === "my" && userAddr) {
+      presaleIds = await contract.getCreatorPresales(userAddr);
+    } else {
+      const count = await contract.presaleCount();
+      for (let i = 0; i < Math.min(Number(count), 100); i++) {
+        presaleIds.push(i);
+      }
+    }
+
+    const locks = [];
+    for (const id of presaleIds) {
+      try {
+        const data = await contract.getPresale(id);
+        if (data[1].liquidityAdded) {
+          const lpInfo = await contract.getLPLockInfo(Number(id));
+          locks.push({
+            id: Number(id),
+            config: data[0],
+            state: data[1],
+            lpInfo,
+          });
+        }
+      } catch (e) {}
+    }
+
+    if (locks.length === 0) {
+      container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔒</div><p>${filterType === "my" ? "Kamu belum memiliki LP Lock" : "Belum ada LP Lock"}</p></div>`;
+      return true;
+    }
+
+    let html = '<div class="lp-lock-grid">';
+    for (const lock of locks) {
+      const lpAmount = Number(ethers.formatEther(lock.lpInfo.lpAmount || 0n));
+      const lockDur = Number(lock.config.lpLockDuration);
+      const lockOpt =
+        CONFIG.LP_LOCK_OPTIONS[lockDur] || CONFIG.LP_LOCK_OPTIONS[0];
+      const isUnlocked = lock.lpInfo.isUnlocked;
+      const isPermanent = lock.lpInfo.isPermanent;
+      const withdrawn = lock.lpInfo.withdrawn;
+
+      let statusClass = "status-locked";
+      let statusText = "🔒 Terkunci";
+      if (isPermanent) {
+        statusClass = "status-permanent";
+        statusText = "🔥 PERMANEN";
+      } else if (withdrawn) {
+        statusClass = "status-withdrawn";
+        statusText = "📤 Sudah Ditarik";
+      } else if (isUnlocked) {
+        statusClass = "status-unlocked";
+        statusText = "🔓 Siap Ditarik";
+      }
+
+      html += `
+        <div class="lp-lock-card ${filterType === "my" ? "my-lock-card" : ""}" onclick="${filterType !== "my" ? `openPresaleDetail(${lock.id})` : ""}">
+          <div class="lp-lock-card-header">
+            <div class="card-logo-small">${lock.config.logoIPFSHash ? `<img src="${CONFIG.LOGO_URL_BASE + lock.config.logoIPFSHash}" onerror="this.textContent='🪙'">` : "🪙"}</div>
+            <div class="lp-lock-card-info">
+              <div class="lp-lock-card-name">${escHtml(lock.config.tokenName)}</div>
+              <div class="lp-lock-card-id">${escHtml(lock.config.tokenSymbol)}</div>
+            </div>
+            <div class="lp-lock-status ${statusClass}">${statusText}</div>
+          </div>
+          <div class="lp-lock-card-details">
+            <div class="lp-detail-row"><span>💰 LP Amount</span><span>${lpAmount.toFixed(4)} LP</span></div>
+            <div class="lp-detail-row"><span>🔐 Lock Duration</span><span>${lockOpt.label}</span></div>
+          </div>
+          <div class="lp-lock-card-footer">
+            ${filterType === "my" && !withdrawn && isUnlocked && !isPermanent ? `<button class="btn-primary" onclick="event.stopPropagation(); withdrawLP(${lock.id})">🔓 Tarik LP</button>` : ""}
+            <button class="btn-outline" onclick="event.stopPropagation(); openPresaleDetail(${lock.id}); navigateTo('detail')">📋 Detail</button>
+          </div>
+        </div>`;
+    }
+    html += "</div>";
+    container.innerHTML = html;
+    return true;
+  } catch (e) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Error: ${e.message}</p></div>`;
+    return false;
+  }
+}
+
+// ==================== TRANSACTION MODAL FUNCTIONS ====================
+
+function showTxModal(title, message, detail = "", icon = "⏳") {
+  const overlay = document.getElementById("txModalOverlay");
+  const modal = document.getElementById("txModal");
+  const iconEl = document.getElementById("txModalIcon");
+  const titleEl = document.getElementById("txModalTitle");
+  const msgEl = document.getElementById("txModalMessage");
+  const detailEl = document.getElementById("txModalDetail");
+  const progressFill = document.getElementById("txProgressFill");
+  const btn = document.getElementById("txModalBtn");
+  if (!overlay || !modal) return;
+  iconEl.innerHTML = icon;
+  iconEl.className = "tx-modal-icon";
+  titleEl.innerHTML = title;
+  titleEl.className = "tx-modal-title";
+  msgEl.innerHTML = message;
+  detailEl.innerHTML = detail;
+  btn.style.display = "none";
+  if (progressFill) progressFill.style.width = "0%";
+  if (txModalInterval) clearInterval(txModalInterval);
+  let progress = 0;
+  txModalInterval = setInterval(() => {
+    progress += 5;
+    if (progress >= 80) {
+      clearInterval(txModalInterval);
+      txModalInterval = null;
+    }
+    if (progressFill) progressFill.style.width = Math.min(progress, 80) + "%";
+  }, 100);
+  overlay.classList.add("open");
+  modal.classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+
+function updateTxModal(message, detail = "", progress = null) {
+  const msgEl = document.getElementById("txModalMessage");
+  const detailEl = document.getElementById("txModalDetail");
+  const progressFill = document.getElementById("txProgressFill");
+  if (msgEl) msgEl.innerHTML = message;
+  if (detailEl && detail) detailEl.innerHTML = detail;
+  if (progressFill && progress !== null)
+    progressFill.style.width = Math.min(progress, 95) + "%";
+}
+
+function closeTxModal() {
+  const overlay = document.getElementById("txModalOverlay");
+  const modal = document.getElementById("txModal");
+  if (txModalInterval) {
+    clearInterval(txModalInterval);
+    txModalInterval = null;
+  }
+  if (overlay) overlay.classList.remove("open");
+  if (modal) modal.classList.remove("open");
+  document.body.style.overflow = "";
+}
+
+function showTxSuccess(title, message, detail = "", autoClose = 3000) {
+  const iconEl = document.getElementById("txModalIcon");
+  const titleEl = document.getElementById("txModalTitle");
+  const progressFill = document.getElementById("txProgressFill");
+  const btn = document.getElementById("txModalBtn");
+  if (txModalInterval) {
+    clearInterval(txModalInterval);
+    txModalInterval = null;
+  }
+  if (iconEl) {
+    iconEl.innerHTML = "✅";
+    iconEl.className = "tx-modal-icon success";
+  }
+  if (titleEl) {
+    titleEl.innerHTML = title;
+    titleEl.className = "tx-modal-title success";
+  }
+  if (progressFill) progressFill.style.width = "100%";
+  if (btn) btn.style.display = "block";
+  updateTxModal(message, detail, 100);
+  if (autoClose > 0) {
+    setTimeout(() => {
+      closeTxModal();
+    }, autoClose);
+  }
+}
+
+function showTxError(title, message, detail = "") {
+  const iconEl = document.getElementById("txModalIcon");
+  const titleEl = document.getElementById("txModalTitle");
+  const progressFill = document.getElementById("txProgressFill");
+  const btn = document.getElementById("txModalBtn");
+  if (txModalInterval) {
+    clearInterval(txModalInterval);
+    txModalInterval = null;
+  }
+  if (iconEl) {
+    iconEl.innerHTML = "❌";
+    iconEl.className = "tx-modal-icon error";
+  }
+  if (titleEl) {
+    titleEl.innerHTML = title;
+    titleEl.className = "tx-modal-title error";
+  }
+  if (progressFill) progressFill.style.width = "100%";
+  if (btn) btn.style.display = "block";
+  updateTxModal(message, detail, 100);
+}
+
+// ==================== UTILITY FUNCTIONS ====================
+
+function formatBNB(num) {
+  if (isNaN(num)) return "0";
+  if (num >= 1e9) return (num / 1e9).toFixed(2) + "B";
+  if (num >= 1e6) return (num / 1e6).toFixed(2) + "M";
+  if (num >= 1e3) return (num / 1e3).toFixed(2) + "K";
+  return num.toFixed(4);
+}
+
+function formatNum(num) {
+  if (isNaN(num)) return "0";
+  if (num >= 1e9) return (num / 1e9).toFixed(2) + "B";
+  if (num >= 1e6) return (num / 1e6).toFixed(2) + "M";
+  if (num >= 1e3) return (num / 1e3).toFixed(2) + "K";
+  return num.toLocaleString("id-ID");
+}
+
+function escHtml(str) {
+  if (!str) return "";
+  return str.replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ],
+  );
+}
+
+function setEl(id, val) {
+  const el = document.getElementById(id);
+  if (el && val !== null) el.textContent = val;
+}
+
+function setLoading(id, loading, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (loading) {
+    if (!buttonTexts.has(id)) buttonTexts.set(id, el.textContent);
+    el.disabled = true;
+    el.textContent = text;
+  } else {
+    el.disabled = false;
+    const original = buttonTexts.get(id);
+    if (original) {
+      el.textContent = original;
+      buttonTexts.delete(id);
+    } else if (text) {
+      el.textContent = text;
+    }
+  }
+}
+
+function showToast(msg, type = "info") {
+  const container = document.getElementById("toastContainer");
+  if (!container) return;
+  while (container.children.length >= (CONFIG.MAX_TOAST_COUNT || 5)) {
+    container.removeChild(container.firstChild);
+  }
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.innerHTML = msg;
+  container.appendChild(toast);
+  setTimeout(() => {
+    if (toast.parentNode) toast.remove();
+  }, 4000);
+}
+
+function openModal() {
+  const overlay = document.getElementById("modalOverlay");
+  const modal = document.getElementById("buyModal");
+  if (overlay) overlay.classList.add("open");
+  if (modal) modal.classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+
+function closeModal() {
+  const overlay = document.getElementById("modalOverlay");
+  const modal = document.getElementById("buyModal");
+  if (overlay) overlay.classList.remove("open");
+  if (modal) modal.classList.remove("open");
+  document.body.style.overflow = "";
+}
+
+function animateHeroStats() {}
+
+// ==================== PORTFOLIO FUNCTIONS ====================
+
 async function loadPortfolio() {
   if (!userAddress) {
     const boughtEl = document.getElementById("boughtList");
@@ -2359,7 +2584,6 @@ async function loadPortfolio() {
         '<div style="color:var(--text3);text-align:center;padding:2rem">Hubungkan wallet dulu</div>';
     return;
   }
-
   const contractToUse = factoryContract || getReadOnlyContract();
   if (!contractToUse) {
     const errMsg =
@@ -2370,13 +2594,10 @@ async function loadPortfolio() {
     if (createdEl) createdEl.innerHTML = errMsg;
     return;
   }
-
   const oldSummary = document.getElementById("portfolioReferralSummary");
   if (oldSummary) oldSummary.remove();
-
   try {
     const totalReferralEarnings = await getTotalReferralEarnings();
-
     if (totalReferralEarnings > 0) {
       const refSummary = document.createElement("div");
       refSummary.id = "portfolioReferralSummary";
@@ -2384,20 +2605,12 @@ async function loadPortfolio() {
       refSummary.style.marginBottom = "1.5rem";
       refSummary.style.background = "rgba(16,185,129,0.05)";
       refSummary.style.borderColor = "rgba(16,185,129,0.2)";
-
       refSummary.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
-          <div>
-            <div class="info-title" style="color:var(--accent3); margin-bottom:0.25rem;">🎁 Total Komisi Referral</div>
-            <div style="font-size:0.75rem; color:var(--text3);">Komisi dari semua presale yang kamu referensikan</div>
-          </div>
-          <div style="text-align:right;">
-            <div style="font-size:1.5rem; font-weight:800; color:var(--accent3);">${formatBNB(totalReferralEarnings)} BNB</div>
-            <div style="font-size:0.7rem; color:var(--text3);">Sudah masuk ke wallet kamu</div>
-          </div>
+          <div><div class="info-title" style="color:var(--accent3); margin-bottom:0.25rem;">🎁 Total Komisi Referral</div><div style="font-size:0.75rem; color:var(--text3);">Komisi dari semua presale yang kamu referensikan</div></div>
+          <div style="text-align:right;"><div style="font-size:1.5rem; font-weight:800; color:var(--accent3);">${formatBNB(totalReferralEarnings)} BNB</div><div style="font-size:0.7rem; color:var(--text3);">Sudah masuk ke wallet kamu</div></div>
         </div>
       `;
-
       const portfolioHeader = document.querySelector(".portfolio-tabs");
       if (portfolioHeader) {
         portfolioHeader.parentNode.insertBefore(
@@ -2409,12 +2622,10 @@ async function loadPortfolio() {
   } catch (e) {
     console.warn("Could not fetch total referral earnings:", e);
   }
-
   const boughtEl = document.getElementById("boughtList");
   if (boughtEl)
     boughtEl.innerHTML =
       '<div style="color:var(--text3);text-align:center;padding:2rem">Memuat...</div>';
-
   try {
     const buyerIds = await Promise.race([
       contractToUse.getBuyerPresales(userAddress),
@@ -2425,7 +2636,6 @@ async function loadPortfolio() {
         ),
       ),
     ]).catch((e) => []);
-
     if (buyerIds.length === 0) {
       if (boughtEl)
         boughtEl.innerHTML =
@@ -2443,12 +2653,10 @@ async function loadPortfolio() {
     if (boughtEl)
       boughtEl.innerHTML = `<div style="color:var(--danger);text-align:center;padding:2rem">Error: ${e.message}</div>`;
   }
-
   const createdEl = document.getElementById("createdList");
   if (createdEl)
     createdEl.innerHTML =
       '<div style="color:var(--text3);text-align:center;padding:2rem">Memuat...</div>';
-
   try {
     const creatorIds = await Promise.race([
       contractToUse.getCreatorPresales(userAddress),
@@ -2459,7 +2667,6 @@ async function loadPortfolio() {
         ),
       ),
     ]).catch((e) => []);
-
     if (creatorIds.length === 0) {
       if (createdEl)
         createdEl.innerHTML =
@@ -2497,7 +2704,6 @@ async function buildPortfolioBuyCard(id) {
     : ended
       ? '<span class="badge badge-warn">Siap Klaim</span>'
       : '<span class="badge badge-info">Aktif</span>';
-
   return `<div class="portfolio-card"><div class="portfolio-logo">🪙</div><div class="portfolio-info"><div class="portfolio-name">${escHtml(cfg.tokenName)} (${escHtml(cfg.tokenSymbol)})</div><div class="portfolio-meta">Dibeli: ${contributed} BNB | ${allocated} ${escHtml(cfg.tokenSymbol)}</div></div><div class="portfolio-actions">${statusBadge}${!claimed && ended && signer ? `<button class="btn-primary" onclick="claimTokens(${id})" style="font-size:0.8rem">Klaim</button>` : ""}<button class="btn-outline" onclick="openPresaleDetail(${id});navigateTo('detail')">Detail</button></div></div>`;
 }
 
@@ -2521,7 +2727,6 @@ async function buildCreatorCard(id) {
   const trustedB = lockOpt.trusted
     ? `<span class="badge badge-trusted">⭐ Trusted</span>`
     : "";
-
   let lpStatusHtml = "";
   if (st.liquidityAdded) {
     try {
@@ -2538,32 +2743,23 @@ async function buildCreatorCard(id) {
         lpStatusHtml = `<span>🔒 Unlock: ${new Date(Number(lpInfo.unlockAt) * 1000).toLocaleDateString()}</span>`;
     } catch (e) {}
   }
-
   const totalTokensNum = Number(ethers.formatEther(cfg.totalTokensForSale));
   const tokensSoldNum = Number(ethers.formatEther(st.tokensSold));
   const unsoldTokens = totalTokensNum - tokensSoldNum;
-
   const totalRaisedNum = Number(ethers.formatEther(st.totalRaised));
   const needsLiquidity = totalRaisedNum > 0;
   const liquidityAdded = st.liquidityAdded;
   const isFinalized = Number(st.status) === 1;
-
   const isZeroRaised = totalRaisedNum === 0 && !isFinalized && ended;
-
   const showFinalizeBtn = ended && !isFinalized && needsLiquidity && signer;
-
   const showFinalizeAndWithdrawBtn = isZeroRaised && unsoldTokens > 0 && signer;
-
   const showWithdrawUnsoldBtn =
     signer && isFinalized && liquidityAdded && unsoldTokens > 0;
-
   const showWithdrawDevBtn =
     ended && liquidityAdded && !st.feesWithdrawn && signer && needsLiquidity;
-
   const zeroRaisedWarning = isZeroRaised
     ? `<div class="portfolio-meta" style="color:var(--warn);font-size:0.7rem">⚠️ Presale tanpa dana. Klik tombol di bawah untuk finalisasi dan tarik token.</div>`
     : "";
-
   return `<div class="portfolio-card"><div class="portfolio-logo">🚀</div><div class="portfolio-info"><div class="portfolio-name">${escHtml(cfg.tokenName)} ${statusLabel}</div><div class="portfolio-meta">Raised: ${raised} BNB | Terjual: ${sold} ${escHtml(cfg.tokenSymbol)}</div><div class="portfolio-meta">${lpBadge} ${trustedB} ${lpStatusHtml}</div><div class="portfolio-meta" style="color:var(--text3);font-size:0.7rem">Token tersisa di kontrak: ${unsoldTokens.toFixed(2)} ${escHtml(cfg.tokenSymbol)}</div>${zeroRaisedWarning}</div><div class="portfolio-actions">
     ${showFinalizeBtn ? `<button class="btn-primary" onclick="finalizeAndLiquidity(${id})">⚡ Finalisasi & Add Likuiditas</button>` : ""}
     ${showFinalizeAndWithdrawBtn ? `<button class="btn-primary" onclick="finalizeAndWithdrawZeroRaised(${id})" style="background:rgba(255,140,0,0.1);border-color:var(--warn);">📤 Finalisasi & Tarik Token Sisa (${unsoldTokens.toFixed(2)} token)</button>` : ""}
@@ -2571,224 +2767,6 @@ async function buildCreatorCard(id) {
     ${showWithdrawDevBtn ? `<button class="btn-primary" onclick="withdrawDevFunds(${id})">💰 Tarik Dana Developer</button>` : ""}
     <button class="btn-outline" onclick="openPresaleDetail(${id});navigateTo('detail')">Detail</button>
 </div></div>`;
-}
-
-async function withdrawDevFunds(presaleId) {
-  if (!signer) return;
-  try {
-    showToast("⏳ Menarik dana developer...", "info");
-    const tx = await factoryContract.withdrawDevFunds(presaleId);
-    await tx.wait();
-    showToast("✅ Dana berhasil ditarik!", "success");
-    loadPortfolio();
-  } catch (e) {
-    showToast(`❌ ${e.reason || e.message}`, "error");
-  }
-}
-
-async function withdrawLP(presaleId) {
-  if (!signer) {
-    showToast("Hubungkan wallet dulu!", "warn");
-    return;
-  }
-
-  const data = await factoryContract.getPresale(presaleId);
-  const cfg = data.config;
-  const st = data.state;
-
-  if (cfg.creator.toLowerCase() !== userAddress.toLowerCase()) {
-    showToast("❌ Hanya pembuat presale yang bisa menarik LP token", "error");
-    return;
-  }
-
-  if (!st.liquidityAdded) {
-    showToast("❌ Likuiditas belum ditambahkan ke DEX", "error");
-    return;
-  }
-
-  const lpInfo = await factoryContract.getLPLockInfo(presaleId);
-  if (!lpInfo.isUnlocked && !lpInfo.isPermanent) {
-    const unlockDate = new Date(
-      Number(lpInfo.unlockAt) * 1000,
-    ).toLocaleDateString("id-ID");
-    showToast(`🔒 LP masih terkunci sampai ${unlockDate}`, "warn");
-    return;
-  }
-
-  if (lpInfo.isPermanent) {
-    showToast("🔥 LP Lock PERMANEN tidak bisa ditarik!", "error");
-    return;
-  }
-
-  if (lpInfo.withdrawn) {
-    showToast("✅ LP sudah pernah ditarik sebelumnya", "info");
-    return;
-  }
-
-  const btn = document.activeElement;
-  let originalText = "Tarik LP";
-  if (btn && btn.textContent) {
-    originalText = btn.textContent;
-    btn.disabled = true;
-  }
-
-  try {
-    showToast("⏳ Menarik LP token...", "info");
-    const tx = await factoryContract.withdrawLP(presaleId);
-    await tx.wait();
-    showToast("✅ LP token berhasil ditarik!", "success");
-    await loadPortfolio();
-    if (currentPresaleId === presaleId) await openPresaleDetail(presaleId);
-  } catch (e) {
-    console.error("Withdraw LP error:", e);
-    let errorMsg = e.reason || e.message;
-
-    if (errorMsg.includes("LP still locked")) {
-      errorMsg = "LP masih terkunci, belum waktunya ditarik.";
-    } else if (errorMsg.includes("LP already withdrawn")) {
-      errorMsg = "LP sudah pernah ditarik sebelumnya.";
-    } else if (errorMsg.includes("Liquidity not added")) {
-      errorMsg = "Likuiditas belum ditambahkan ke DEX.";
-    } else if (errorMsg.includes("Not creator")) {
-      errorMsg = "Hanya pembuat presale yang bisa menarik LP.";
-    } else if (errorMsg.includes("Permanently locked")) {
-      errorMsg = "LP Lock PERMANEN tidak bisa ditarik.";
-    }
-
-    showToast(`❌ ${errorMsg}`, "error");
-  } finally {
-    if (btn) btn.disabled = false;
-  }
-}
-
-async function withdrawUnsoldTokens(presaleId) {
-  if (!factoryContract) {
-    showToast("Kontrak tidak terhubung. Coba refresh halaman.", "error");
-    return;
-  }
-  if (!signer) {
-    showToast("Hubungkan wallet dulu!", "warn");
-    return;
-  }
-
-  const data = await factoryContract.getPresale(presaleId);
-  const st = data.state;
-  const totalRaisedNum = Number(ethers.formatEther(st.totalRaised || 0n));
-  const liquidityAdded = st.liquidityAdded;
-  const isFinalized = Number(st.status) === 1;
-
-  if (totalRaisedNum > 0 && !liquidityAdded) {
-    const doAnyway = confirm(
-      `⚠️ PERINGATAN PENTING!\n\n` +
-        `Presale ini memiliki dana terkumpul sebesar ${totalRaisedNum} BNB.\n\n` +
-        `Anda HARUS melakukan Finalisasi & Add Likuiditas TERLEBIH DAHULU sebelum menarik token sisa.\n\n` +
-        `Jika Anda menarik token sisa sekarang, likuiditas tidak akan bisa ditambahkan dan pembeli tidak bisa mengklaim token mereka!\n\n` +
-        `Apakah Anda yakin ingin tetap menarik token sisa? (TIDAK DISARANKAN)`,
-    );
-    if (!doAnyway) return;
-  }
-
-  if (
-    !confirm(
-      "Tarik token yang tidak laku?\n\n" +
-        "Pastikan:\n" +
-        "✓ Presale sudah selesai\n" +
-        "✓ Jika ada dana terkumpul, likuiditas sudah ditambahkan\n" +
-        "Token akan dikirim ke wallet Anda.",
-    )
-  ) {
-    return;
-  }
-
-  try {
-    showToast("⏳ Menarik token sisa...", "info");
-    const tx = await factoryContract.withdrawUnsoldTokens(presaleId);
-    await tx.wait();
-    showToast("✅ Token sisa berhasil ditarik!", "success");
-    await loadPortfolio();
-    if (currentPresaleId === presaleId) await openPresaleDetail(presaleId);
-  } catch (error) {
-    console.error("Error withdrawing unsold tokens:", error);
-    let errorMessage = error.reason || error.message || "Gagal menarik token.";
-
-    if (errorMessage.includes("Not ended")) {
-      errorMessage = "Presale belum selesai. Tunggu hingga waktu berakhir.";
-    } else if (errorMessage.includes("No unsold tokens")) {
-      errorMessage = "Tidak ada token sisa. Semua token sudah terjual.";
-    } else if (errorMessage.includes("Only creator")) {
-      errorMessage = "Hanya pembuat presale yang bisa melakukan ini.";
-    }
-
-    showToast(`❌ ${errorMessage}`, "error");
-  }
-}
-
-async function finalizeAndWithdrawZeroRaised(presaleId) {
-  if (!signer) {
-    showToast("Hubungkan wallet dulu!", "warn");
-    return;
-  }
-
-  const btn = document.activeElement;
-  let originalText = "Finalize & Withdraw";
-  if (btn && btn.textContent) {
-    originalText = btn.textContent;
-    btn.disabled = true;
-  }
-
-  try {
-    const data = await factoryContract.getPresale(presaleId);
-    const cfg = data.config;
-    const st = data.state;
-    const totalRaisedNum = Number(ethers.formatEther(st.totalRaised || 0n));
-
-    if (totalRaisedNum > 0) {
-      showToast(
-        "❌ Presale ini memiliki dana. Gunakan tombol Finalisasi biasa.",
-        "error",
-      );
-      if (btn) btn.disabled = false;
-      return;
-    }
-
-    const totalTokensNum = Number(ethers.formatEther(cfg.totalTokensForSale));
-    const tokensSoldNum = Number(ethers.formatEther(st.tokensSold));
-    const unsoldTokens = totalTokensNum - tokensSoldNum;
-
-    if (unsoldTokens <= 0) {
-      showToast("❌ Tidak ada token sisa untuk ditarik", "warn");
-      if (btn) btn.disabled = false;
-      return;
-    }
-
-    showToast("⏳ Memfinalisasi presale...", "info");
-    const tx1 = await factoryContract.finalizePresale(presaleId);
-    await tx1.wait();
-    showToast("✅ Presale berhasil difinalisasi!", "success");
-
-    showToast("⏳ Menarik token sisa...", "info");
-    const tx2 = await factoryContract.withdrawUnsoldTokens(presaleId);
-    await tx2.wait();
-
-    showToast("✅ Token sisa berhasil ditarik!", "success");
-    await loadPortfolio();
-    if (currentPresaleId === presaleId) await openPresaleDetail(presaleId);
-  } catch (e) {
-    console.error("Finalize & withdraw error:", e);
-    let errorMsg = e.reason || e.message;
-
-    if (errorMsg.includes("Not ended")) {
-      errorMsg = "Gagal finalisasi presale.";
-    } else if (errorMsg.includes("No unsold tokens")) {
-      errorMsg = "Tidak ada token sisa.";
-    } else if (errorMsg.includes("user rejected")) {
-      errorMsg = "Transaksi dibatalkan di wallet.";
-    }
-
-    showToast(`❌ ${errorMsg}`, "error");
-  } finally {
-    if (btn) btn.disabled = false;
-  }
 }
 
 function switchPortfolioTab(tab, event) {
@@ -2805,6 +2783,238 @@ function switchPortfolioTab(tab, event) {
   if (target) target.classList.add("active");
 }
 
+// ==================== WITHDRAW FUNCTIONS ====================
+
+async function withdrawDevFunds(presaleId) {
+  if (!signer) {
+    showToast("Hubungkan wallet dulu!", "warn");
+    return;
+  }
+  const data = await factoryContract.getPresale(presaleId);
+  const cfg = data.config;
+  const totalRaisedNum = Number(
+    ethers.formatEther(data.state.totalRaised || 0n),
+  );
+  const devAllocBps = Number(cfg.devAllocBps) / 100;
+  const devAmount = (totalRaisedNum * devAllocBps) / 100;
+  showTxModal(
+    "Tarik Dana Developer",
+    `Menarik ${formatBNB(devAmount)} BNB untuk developer...`,
+    "Mohon konfirmasi di wallet",
+    "⏳",
+  );
+  try {
+    updateTxModal("Memproses...", "", 50);
+    const tx = await factoryContract.withdrawDevFunds(presaleId);
+    updateTxModal(
+      "Menunggu konfirmasi...",
+      `Tx: ${tx.hash.slice(0, 16)}...`,
+      70,
+    );
+    await tx.wait();
+    showTxSuccess(
+      "✅ Dana Developer Berhasil Ditarik!",
+      `${formatBNB(devAmount)} BNB sudah masuk ke wallet Anda`,
+      "",
+      3000,
+    );
+    await loadPortfolio();
+  } catch (e) {
+    showTxError("Gagal", e.reason || e.message, "Silakan coba lagi");
+  }
+}
+
+async function withdrawLP(presaleId) {
+  if (!signer) {
+    showToast("Hubungkan wallet dulu!", "warn");
+    return;
+  }
+  const data = await factoryContract.getPresale(presaleId);
+  const cfg = data.config;
+  const st = data.state;
+  if (cfg.creator.toLowerCase() !== userAddress.toLowerCase()) {
+    showTxError(
+      "Error",
+      "Hanya pembuat presale yang bisa menarik LP token",
+      "",
+    );
+    return;
+  }
+  if (!st.liquidityAdded) {
+    showTxError("Error", "Likuiditas belum ditambahkan ke DEX", "");
+    return;
+  }
+  const lpInfo = await factoryContract.getLPLockInfo(presaleId);
+  if (!lpInfo.isUnlocked && !lpInfo.isPermanent) {
+    const unlockDate = new Date(
+      Number(lpInfo.unlockAt) * 1000,
+    ).toLocaleDateString("id-ID");
+    showTxError("Terkunci", `LP masih terkunci sampai ${unlockDate}`, "");
+    return;
+  }
+  if (lpInfo.isPermanent) {
+    showTxError("Permanen", "LP Lock PERMANEN tidak bisa ditarik!", "");
+    return;
+  }
+  if (lpInfo.withdrawn) {
+    showTxError("Info", "LP sudah pernah ditarik sebelumnya", "");
+    return;
+  }
+  const tokenSymbol = cfg.tokenSymbol;
+  showTxModal(
+    "Tarik LP Token",
+    `Menarik LP token ${tokenSymbol}...`,
+    "Mohon konfirmasi di wallet",
+    "⏳",
+  );
+  try {
+    updateTxModal("Memproses...", "", 50);
+    const tx = await factoryContract.withdrawLP(presaleId);
+    updateTxModal(
+      "Menunggu konfirmasi...",
+      `Tx: ${tx.hash.slice(0, 16)}...`,
+      70,
+    );
+    await tx.wait();
+    showTxSuccess(
+      "✅ LP Token Berhasil Ditarik!",
+      `LP token ${tokenSymbol} sudah masuk ke wallet Anda`,
+      "",
+      3000,
+    );
+    await loadPortfolio();
+    if (currentPresaleId === presaleId) await openPresaleDetail(presaleId);
+  } catch (e) {
+    console.error("Withdraw LP error:", e);
+    let errorMsg = e.reason || e.message;
+    showTxError("Gagal", errorMsg, "Silakan coba lagi");
+  }
+}
+
+async function withdrawUnsoldTokens(presaleId) {
+  if (!factoryContract) {
+    showToast("Kontrak tidak terhubung. Coba refresh halaman.", "error");
+    return;
+  }
+  if (!signer) {
+    showToast("Hubungkan wallet dulu!", "warn");
+    return;
+  }
+  const data = await factoryContract.getPresale(presaleId);
+  const cfg = data.config;
+  const st = data.state;
+  const totalRaisedNum = Number(ethers.formatEther(st.totalRaised || 0n));
+  const liquidityAdded = st.liquidityAdded;
+  const tokenSymbol = cfg.tokenSymbol;
+  const totalTokensNum = Number(ethers.formatEther(cfg.totalTokensForSale));
+  const tokensSoldNum = Number(ethers.formatEther(st.tokensSold));
+  const unsoldTokens = totalTokensNum - tokensSoldNum;
+  if (totalRaisedNum > 0 && !liquidityAdded) {
+    const doAnyway = confirm(
+      `⚠️ PERINGATAN PENTING!\n\nPresale ini memiliki dana terkumpul sebesar ${totalRaisedNum} BNB.\n\nAnda HARUS melakukan Finalisasi & Add Likuiditas TERLEBIH DAHULU sebelum menarik token sisa.\n\nApakah Anda yakin ingin tetap menarik token sisa? (TIDAK DISARANKAN)`,
+    );
+    if (!doAnyway) return;
+  }
+  if (
+    !confirm(
+      "Tarik token yang tidak laku?\n\nPastikan:\n✓ Presale sudah selesai\n✓ Jika ada dana terkumpul, likuiditas sudah ditambahkan\nToken akan dikirim ke wallet Anda.",
+    )
+  ) {
+    return;
+  }
+  showTxModal(
+    "Tarik Token Sisa",
+    `Menarik ${unsoldTokens.toFixed(2)} ${tokenSymbol} yang tidak laku...`,
+    "Mohon konfirmasi di wallet",
+    "⏳",
+  );
+  try {
+    updateTxModal("Memproses...", "", 50);
+    const tx = await factoryContract.withdrawUnsoldTokens(presaleId);
+    updateTxModal(
+      "Menunggu konfirmasi...",
+      `Tx: ${tx.hash.slice(0, 16)}...`,
+      70,
+    );
+    await tx.wait();
+    showTxSuccess(
+      "✅ Token Sisa Berhasil Ditarik!",
+      `${unsoldTokens.toFixed(2)} ${tokenSymbol} sudah masuk ke wallet Anda`,
+      "",
+      3000,
+    );
+    await loadPortfolio();
+  } catch (error) {
+    console.error("Error withdrawing unsold tokens:", error);
+    let errorMessage = error.reason || error.message || "Gagal menarik token.";
+    showTxError("Gagal", errorMessage, "Silakan coba lagi");
+  }
+}
+
+async function finalizeAndWithdrawZeroRaised(presaleId) {
+  if (!signer) {
+    showToast("Hubungkan wallet dulu!", "warn");
+    return;
+  }
+  const btn = document.activeElement;
+  let originalText = "Finalize & Withdraw";
+  if (btn && btn.textContent) {
+    originalText = btn.textContent;
+    btn.disabled = true;
+  }
+  const data = await factoryContract.getPresale(presaleId);
+  const cfg = data.config;
+  const st = data.state;
+  const totalRaisedNum = Number(ethers.formatEther(st.totalRaised || 0n));
+  const tokenSymbol = cfg.tokenSymbol;
+  if (totalRaisedNum > 0) {
+    showTxError(
+      "Error",
+      "Presale ini memiliki dana. Gunakan tombol Finalisasi biasa.",
+      "",
+    );
+    if (btn) btn.disabled = false;
+    return;
+  }
+  const totalTokensNum = Number(ethers.formatEther(cfg.totalTokensForSale));
+  const tokensSoldNum = Number(ethers.formatEther(st.tokensSold));
+  const unsoldTokens = totalTokensNum - tokensSoldNum;
+  if (unsoldTokens <= 0) {
+    showTxError("Info", "Tidak ada token sisa untuk ditarik", "");
+    if (btn) btn.disabled = false;
+    return;
+  }
+  showTxModal(
+    "Finalisasi & Tarik Token",
+    `Memfinalisasi presale dan menarik ${unsoldTokens.toFixed(2)} ${tokenSymbol}...`,
+    "Mohon konfirmasi di wallet",
+    "⏳",
+  );
+  try {
+    updateTxModal("Memfinalisasi presale...", "", 40);
+    const tx1 = await factoryContract.finalizePresale(presaleId);
+    await tx1.wait();
+    updateTxModal("Menarik token sisa...", "", 70);
+    const tx2 = await factoryContract.withdrawUnsoldTokens(presaleId);
+    await tx2.wait();
+    showTxSuccess(
+      "✅ Berhasil!",
+      `Presale difinalisasi dan ${unsoldTokens.toFixed(2)} ${tokenSymbol} ditarik`,
+      "",
+      3000,
+    );
+    await loadPortfolio();
+  } catch (e) {
+    console.error("Finalize & withdraw error:", e);
+    let errorMsg = e.reason || e.message;
+    showTxError("Gagal", errorMsg, "Silakan coba lagi");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ==================== ADMIN FUNCTIONS ====================
+
 async function loadAdminData() {
   if (!factoryContract || !userAddress) return;
   try {
@@ -2816,7 +3026,6 @@ async function loadAdminData() {
       feeVal.textContent = `${formatBNB(Number(ethers.formatEther(fees)))} BNB`;
     if (stats)
       stats.innerHTML = `<div class="admin-stat-row"><span>Total Presale</span><span>${Number(count)}</span></div><div class="admin-stat-row"><span>Fee Terkumpul</span><span>${formatBNB(Number(ethers.formatEther(fees)))} BNB</span></div>`;
-
     const listEl = document.getElementById("adminPresaleList");
     if (!listEl) return;
     const items = [];
@@ -2882,123 +3091,32 @@ async function adminCancelPresale(id) {
   }
 }
 
-function openModal() {
-  const overlay = document.getElementById("modalOverlay");
-  const modal = document.getElementById("buyModal");
-  if (overlay) overlay.classList.add("open");
-  if (modal) modal.classList.add("open");
-  document.body.style.overflow = "hidden";
-}
-
-function closeModal() {
-  const overlay = document.getElementById("modalOverlay");
-  const modal = document.getElementById("buyModal");
-  if (overlay) overlay.classList.remove("open");
-  if (modal) modal.classList.remove("open");
-  document.body.style.overflow = "";
-}
-
-function animateHeroStats() {}
-
-function showToast(msg, type = "info") {
-  const container = document.getElementById("toastContainer");
-  if (!container) return;
-
-  while (container.children.length >= (CONFIG.MAX_TOAST_COUNT || 5)) {
-    container.removeChild(container.firstChild);
-  }
-
-  const toast = document.createElement("div");
-  toast.className = `toast ${type}`;
-  toast.innerHTML = msg;
-  container.appendChild(toast);
-  setTimeout(() => {
-    if (toast.parentNode) toast.remove();
-  }, 4000);
-}
-
-function formatBNB(num) {
-  if (isNaN(num)) return "0";
-  if (num >= 1e9) return (num / 1e9).toFixed(2) + "B";
-  if (num >= 1e6) return (num / 1e6).toFixed(2) + "M";
-  if (num >= 1e3) return (num / 1e3).toFixed(2) + "K";
-  return num.toFixed(4);
-}
-
-function formatNum(num) {
-  if (isNaN(num)) return "0";
-  if (num >= 1e9) return (num / 1e9).toFixed(2) + "B";
-  if (num >= 1e6) return (num / 1e6).toFixed(2) + "M";
-  if (num >= 1e3) return (num / 1e3).toFixed(2) + "K";
-  return num.toLocaleString("id-ID");
-}
-
-function escHtml(str) {
-  if (!str) return "";
-  return str.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
-        c
-      ],
-  );
-}
-
-function setEl(id, val) {
-  const el = document.getElementById(id);
-  if (el && val !== null) el.textContent = val;
-}
-
-function setLoading(id, loading, text) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  if (loading) {
-    if (!buttonTexts.has(id)) buttonTexts.set(id, el.textContent);
-    el.disabled = true;
-    el.textContent = text;
-  } else {
-    el.disabled = false;
-    const original = buttonTexts.get(id);
-    if (original) {
-      el.textContent = original;
-      buttonTexts.delete(id);
-    } else if (text) {
-      el.textContent = text;
-    }
-  }
-}
+// ==================== LOAD MORE ====================
 
 function loadMorePresales() {
   const grid = document.getElementById("presaleGrid");
   const empty = document.getElementById("emptyPresale");
   const loadMoreBtn = document.getElementById("loadMoreBtn");
-
   if (!grid || !allFilteredPresales.length) return;
-
   currentPage++;
-
   const start = (currentPage - 1) * ITEMS_PER_PAGE;
   const end = currentPage * ITEMS_PER_PAGE;
   const morePresales = allFilteredPresales.slice(start, end);
-
   if (morePresales.length === 0) {
     if (loadMoreBtn) loadMoreBtn.style.display = "none";
     return;
   }
-
   if (loadMoreBtn) {
     loadMoreBtn.disabled = true;
     const span = loadMoreBtn.querySelector("span");
     if (span) span.textContent = "Loading...";
   }
-
   setTimeout(() => {
     morePresales.forEach((p) => {
       const card = createPresaleCard(p);
       grid.insertBefore(card, empty);
       startTimer(p.id, Number(p.config.endTime));
     });
-
     if (loadMoreBtn) {
       loadMoreBtn.disabled = false;
       if (allFilteredPresales.length > currentPage * ITEMS_PER_PAGE) {
@@ -3010,7 +3128,6 @@ function loadMorePresales() {
         loadMoreBtn.style.display = "none";
       }
     }
-
     showToast(`Memuat ${morePresales.length} presale lagi`, "info");
   }, 100);
 }
