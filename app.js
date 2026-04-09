@@ -1948,58 +1948,76 @@ function recalcAlloc() {
 }
 
 function updateAllocBreakdown() {
-  let liq = parseInt(document.getElementById("liquidityAlloc")?.value || "70");
+  let liqInput = document.getElementById("liquidityAlloc")?.value;
+  let refInput = document.getElementById("referralPct")?.value;
+
+  // Gunakan nilai default jika kosong
+  let liq = liqInput === "" || liqInput === null ? 70 : parseInt(liqInput);
   let ref = referralEnabled
-    ? parseInt(document.getElementById("referralPct")?.value || "0")
+    ? refInput === "" || refInput === null
+      ? 1
+      : parseInt(refInput)
     : 0;
+
   const platform = 5;
 
-  if (liq < CONFIG.MIN_LIQUIDITY_PERCENT) {
-    liq = CONFIG.MIN_LIQUIDITY_PERCENT;
-    const liqInput = document.getElementById("liquidityAlloc");
-    if (liqInput) liqInput.value = liq;
-    showToast(
-      `Alokasi likuiditas minimal ${CONFIG.MIN_LIQUIDITY_PERCENT}%`,
-      "warn",
-    );
-  }
-  if (liq > CONFIG.MAX_LIQUIDITY_PERCENT) {
-    liq = CONFIG.MAX_LIQUIDITY_PERCENT;
-    const liqInput = document.getElementById("liquidityAlloc");
-    if (liqInput) liqInput.value = liq;
-    showToast(
-      `Alokasi likuiditas maksimal ${CONFIG.MAX_LIQUIDITY_PERCENT}%`,
-      "warn",
-    );
+  // Validasi hanya jika nilai valid
+  if (!isNaN(liq)) {
+    if (liq < CONFIG.MIN_LIQUIDITY_PERCENT) {
+      liq = CONFIG.MIN_LIQUIDITY_PERCENT;
+      const liqInputElem = document.getElementById("liquidityAlloc");
+      if (liqInputElem) liqInputElem.value = liq;
+      showToast(
+        `Alokasi likuiditas minimal ${CONFIG.MIN_LIQUIDITY_PERCENT}%`,
+        "warn",
+      );
+    }
+    if (liq > CONFIG.MAX_LIQUIDITY_PERCENT) {
+      liq = CONFIG.MAX_LIQUIDITY_PERCENT;
+      const liqInputElem = document.getElementById("liquidityAlloc");
+      if (liqInputElem) liqInputElem.value = liq;
+      showToast(
+        `Alokasi likuiditas maksimal ${CONFIG.MAX_LIQUIDITY_PERCENT}%`,
+        "warn",
+      );
+    }
+  } else {
+    liq = 70;
   }
 
-  if (ref < CONFIG.MIN_REFERRAL_PERCENT) {
-    ref = CONFIG.MIN_REFERRAL_PERCENT;
-    const refInput = document.getElementById("referralPct");
-    if (refInput) refInput.value = ref;
-    showToast(
-      `Persentase referral minimal ${CONFIG.MIN_REFERRAL_PERCENT}%`,
-      "warn",
-    );
-  }
-  if (ref > CONFIG.MAX_REFERRAL_PERCENT) {
-    ref = CONFIG.MAX_REFERRAL_PERCENT;
-    const refInput = document.getElementById("referralPct");
-    if (refInput) refInput.value = ref;
-    showToast(
-      `Persentase referral maksimal ${CONFIG.MAX_REFERRAL_PERCENT}%`,
-      "warn",
-    );
+  if (!isNaN(ref) && referralEnabled) {
+    if (ref < CONFIG.MIN_REFERRAL_PERCENT) {
+      ref = CONFIG.MIN_REFERRAL_PERCENT;
+      const refInputElem = document.getElementById("referralPct");
+      if (refInputElem) refInputElem.value = ref;
+      showToast(
+        `Persentase referral minimal ${CONFIG.MIN_REFERRAL_PERCENT}%`,
+        "warn",
+      );
+    }
+    if (ref > CONFIG.MAX_REFERRAL_PERCENT) {
+      ref = CONFIG.MAX_REFERRAL_PERCENT;
+      const refInputElem = document.getElementById("referralPct");
+      if (refInputElem) refInputElem.value = ref;
+      showToast(
+        `Persentase referral maksimal ${CONFIG.MAX_REFERRAL_PERCENT}%`,
+        "warn",
+      );
+    }
+  } else if (!referralEnabled) {
+    ref = 0;
+  } else {
+    ref = 1;
   }
 
   let dev = 100 - liq - platform - ref;
 
   if (dev < CONFIG.MIN_DEV_PERCENT) {
     const maxAllowedRef = 100 - platform - liq - CONFIG.MIN_DEV_PERCENT;
-    if (maxAllowedRef >= CONFIG.MIN_REFERRAL_PERCENT) {
+    if (maxAllowedRef >= CONFIG.MIN_REFERRAL_PERCENT && referralEnabled) {
       ref = maxAllowedRef;
-      const refInput = document.getElementById("referralPct");
-      if (refInput) refInput.value = ref;
+      const refInputElem = document.getElementById("referralPct");
+      if (refInputElem) refInputElem.value = ref;
       showToast(
         `Alokasi referral disesuaikan menjadi ${ref}% agar developer mendapat minimal ${CONFIG.MIN_DEV_PERCENT}%`,
         "warn",
@@ -2007,8 +2025,8 @@ function updateAllocBreakdown() {
     } else {
       liq =
         100 - platform - CONFIG.MIN_REFERRAL_PERCENT - CONFIG.MIN_DEV_PERCENT;
-      const liqInput = document.getElementById("liquidityAlloc");
-      if (liqInput) liqInput.value = liq;
+      const liqInputElem = document.getElementById("liquidityAlloc");
+      if (liqInputElem) liqInputElem.value = liq;
       showToast(
         `Alokasi likuiditas disesuaikan menjadi ${liq}% agar developer mendapat minimal ${CONFIG.MIN_DEV_PERCENT}%`,
         "warn",
@@ -2051,13 +2069,41 @@ function toggleReferral() {
 }
 
 function updateReferralVal() {
-  let val = parseInt(document.getElementById("referralPct")?.value || "0");
+  let val = document.getElementById("referralPct")?.value;
 
-  if (val < CONFIG.MIN_REFERRAL_PERCENT) val = CONFIG.MIN_REFERRAL_PERCENT;
-  if (val > CONFIG.MAX_REFERRAL_PERCENT) val = CONFIG.MAX_REFERRAL_PERCENT;
+  // Jika input kosong, biarkan saja
+  if (val === "" || val === null) {
+    updateAllocBreakdown();
+    recalcAlloc();
+    return;
+  }
 
-  const refInput = document.getElementById("referralPct");
-  if (refInput) refInput.value = val;
+  val = parseInt(val);
+
+  if (isNaN(val)) {
+    updateAllocBreakdown();
+    recalcAlloc();
+    return;
+  }
+
+  if (val < CONFIG.MIN_REFERRAL_PERCENT) {
+    val = CONFIG.MIN_REFERRAL_PERCENT;
+    const refInput = document.getElementById("referralPct");
+    if (refInput) refInput.value = val;
+    showToast(
+      `Persentase referral minimal ${CONFIG.MIN_REFERRAL_PERCENT}%`,
+      "warn",
+    );
+  }
+  if (val > CONFIG.MAX_REFERRAL_PERCENT) {
+    val = CONFIG.MAX_REFERRAL_PERCENT;
+    const refInput = document.getElementById("referralPct");
+    if (refInput) refInput.value = val;
+    showToast(
+      `Persentase referral maksimal ${CONFIG.MAX_REFERRAL_PERCENT}%`,
+      "warn",
+    );
+  }
 
   const pctVal = document.getElementById("referralPctVal");
   const pctDisplay = document.getElementById("refPctDisplay");
@@ -2069,13 +2115,40 @@ function updateReferralVal() {
 }
 
 function updateLiquidityVal() {
-  let val = parseInt(document.getElementById("liquidityAlloc")?.value || "70");
+  let val = document.getElementById("liquidityAlloc")?.value;
 
-  if (val < CONFIG.MIN_LIQUIDITY_PERCENT) val = CONFIG.MIN_LIQUIDITY_PERCENT;
-  if (val > CONFIG.MAX_LIQUIDITY_PERCENT) val = CONFIG.MAX_LIQUIDITY_PERCENT;
+  if (val === "" || val === null) {
+    updateAllocBreakdown();
+    recalcAlloc();
+    return;
+  }
 
-  const liqInput = document.getElementById("liquidityAlloc");
-  if (liqInput) liqInput.value = val;
+  val = parseInt(val);
+
+  if (isNaN(val)) {
+    updateAllocBreakdown();
+    recalcAlloc();
+    return;
+  }
+
+  if (val < CONFIG.MIN_LIQUIDITY_PERCENT) {
+    val = CONFIG.MIN_LIQUIDITY_PERCENT;
+    const liqInput = document.getElementById("liquidityAlloc");
+    if (liqInput) liqInput.value = val;
+    showToast(
+      `Alokasi likuiditas minimal ${CONFIG.MIN_LIQUIDITY_PERCENT}%`,
+      "warn",
+    );
+  }
+  if (val > CONFIG.MAX_LIQUIDITY_PERCENT) {
+    val = CONFIG.MAX_LIQUIDITY_PERCENT;
+    const liqInput = document.getElementById("liquidityAlloc");
+    if (liqInput) liqInput.value = val;
+    showToast(
+      `Alokasi likuiditas maksimal ${CONFIG.MAX_LIQUIDITY_PERCENT}%`,
+      "warn",
+    );
+  }
 
   updateAllocBreakdown();
   recalcAlloc();
